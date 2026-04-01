@@ -1,0 +1,2 @@
+# GameCoreLogicLab
+GameCoreLogicLab 是一个专注于研究和实现各种游戏类型（Genre）核心逻辑系统的开源仓库。这里不仅仅是代码的堆砌，更是对经典游戏机制的工程化实践与性能优化探索。
