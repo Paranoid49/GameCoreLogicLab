@@ -1,0 +1,31 @@
+[project]
+name = "game-core-logic-lab"
+version = "0.1.0"
+description = "游戏核心逻辑工程化实践与性能优化实验室"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-benchmark>=4.0",
+    "pytest-cov>=5.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+markers = [
+    "benchmark: 性能基准测试",
+    "slow: 耗时较长的测试",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "harness/*"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80

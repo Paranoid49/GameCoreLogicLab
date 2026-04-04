@@ -1,0 +1,23 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-architecture
+        name: Architecture compliance
+        entry: python -m harness.lint.check_architecture
+        language: system
+        pass_filenames: false
+        files: \.py$
+
+      - id: check-style
+        name: Code style
+        entry: python -m harness.lint.check_style
+        language: system
+        pass_filenames: false
+        files: \.py$
+
+      - id: check-docs
+        name: Docs health
+        entry: python -m harness.lint.check_docs
+        language: system
+        pass_filenames: false
+        files: \.md$

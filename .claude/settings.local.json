@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(pip install:*)",
+      "Bash(pytest:*)",
+      "Bash(python -m harness.lint.check_architecture)",
+      "Bash(python -m harness.lint.check_style)",
+      "Bash(python -m harness.lint.check_docs)",
+      "Bash(python -m harness.ci)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd D:/github/GameCoreLogicLab && python -m harness.lint.check_architecture 2>&1 | head -3 && python -m harness.lint.check_style 2>&1 | head -3",
+            "timeout": 15000
+          }
+        ]
+      }
+    ]
+  }
+}
