@@ -12,6 +12,18 @@
 
 按以下步骤严格顺序执行，每步完成后报告进度：
 
+### 阶段 0：唤醒检查（恢复中断的任务）
+
+在开始新构建前，先检查是否有进行中的任务：
+
+1. 检查 `docs/plans/active/` 是否有非空的规格文档
+2. 如果有，检查对应的 `src/modules/{module_name}/` 是否已存在
+3. 如果模块目录已存在（说明之前的构建被中断），向用户报告：
+   > 发现进行中的模块 `{module_name}`，规格在 `docs/plans/active/{module_name}.md`，代码已部分实现。
+   > 选择：(1) 继续之前的构建  (2) 放弃并重新开始  (3) 先评估当前状态
+4. 如果选择继续，跳过阶段 1，直接进入阶段 2（Generator 会读取已有代码继续实现）
+5. 如果没有进行中的任务，正常进入阶段 1
+
 ### 阶段 1：规划（Planner）
 
 派生 planner Agent，传入用户描述：
@@ -26,7 +38,7 @@
 
 用户确认规格后，派生 generator Agent：
 
-> 请根据规格文档 `docs/plans/active/{module_name}.md` 实现完整的模块代码和测试。
+> 请根据规格文档 `docs/plans/active/{module_name}.md` 实现完整的模块代码和测试。实现前先执行 `git tag pre-build-{module_name}` 创建安全点。
 
 等待 Generator 完成，向用户报告：创建了哪些文件、测试是否通过、架构检查是否通过。
 
@@ -40,11 +52,12 @@
 
 ### 阶段 4：迭代（如需要）
 
-如果 Evaluator 报告不通过：
-1. 提取 Evaluator 的改进建议
-2. 重新派生 generator Agent，附带改进反馈
+如果 Evaluator 报告 FAIL：
+1. 提取 Evaluator 的 Bug 列表
+2. 重新派生 generator Agent，附带 Bug 列表作为反馈（Generator 会在修复前自动创建迭代安全点）
 3. 再次派生 evaluator Agent 重新评估
 4. 最多迭代 3 轮
+5. 如果迭代中越改越烂，Generator 会自动回滚到上个安全点
 
 ### 阶段 5：归档
 

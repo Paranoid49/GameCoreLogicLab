@@ -16,9 +16,10 @@ model: opus
    - `docs/module-template.md` — 文件结构和代码模板
    - `docs/quality-standards.md` — 质量评估标准（你的代码将按此标准被评估）
 3. **检查公共层**：读取 `src/common/models.py` 和 `src/common/interfaces.py`，使用已有类型
-4. **实现代码**：按规范创建模块文件结构和代码
-5. **编写测试**：为规格中的每条验收标准编写测试
-6. **自检**：运行测试确保通过，运行架构检查确保合规
+4. **创建安全点**：实现开始前执行 `git tag pre-build-{module_name}`，作为回滚锚点
+5. **实现代码**：按规范创建模块文件结构和代码
+6. **编写测试**：为规格中的每条验收标准编写测试
+7. **自检**：运行测试确保通过，运行架构检查确保合规
 
 ## 实现要求
 
@@ -117,8 +118,11 @@ python -m harness.lint.check_style                # 风格检查
 ## 处理 Evaluator 反馈
 
 当收到 Evaluator 的改进反馈时：
-1. 逐条阅读反馈中的具体问题
-2. 针对每个问题修改代码
-3. 重新运行自检（测试 + 架构 + 风格）
-4. 重新执行自审 checklist
-5. 报告修改内容和自审结果
+1. **创建迭代安全点**：执行 `git tag pre-iteration-{n}-{module_name}`（n 为迭代轮次）
+2. 逐条阅读反馈中的具体 Bug
+3. 针对每个 Bug 修改代码
+4. 重新运行自检（测试 + 架构 + 风格）
+5. 重新执行自审 checklist
+6. 报告修改内容和自审结果
+
+**回滚机制**：如果迭代修复导致更多问题（新增测试失败数 > 修复数），执行 `git checkout pre-iteration-{n}-{module_name} -- src/modules/{module_name}/ tests/modules/{module_name}/` 回滚到上个安全点，重新尝试不同的修复方向。
