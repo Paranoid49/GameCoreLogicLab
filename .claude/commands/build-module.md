@@ -30,13 +30,13 @@
 
 > 请为以下游戏核心机制生成完整的模块规格文档：「$ARGUMENTS」
 
-等待 Planner 完成，向用户展示规格概要（模块名、核心概念、验收标准数量）。
+等待 Planner 完成，向用户展示规格概要（模块名、核心概念、验收标准数量），随后自动进入阶段 2。
 
-**暂停等待用户确认**：用户可以提出修改意见或确认继续。如果用户要求修改，重新派生 Planner 修订规格。
+如需单独审查规格再决定是否实现，使用 `/plan-module` 命令。
 
 ### 阶段 2：实现（Generator）
 
-用户确认规格后，派生 generator Agent：
+派生 generator Agent：
 
 > 请根据规格文档 `docs/plans/active/{module_name}.md` 实现完整的模块代码和测试。实现前先执行 `git tag pre-build-{module_name}` 创建安全点。
 
@@ -52,7 +52,7 @@
 
 ### 阶段 4：迭代（如需要）
 
-如果 Evaluator 报告 FAIL：
+如果 Evaluator 报告 FAIL，或报告 PASS 但存在重要级 Bug：
 1. 提取 Evaluator 的 Bug 列表
 2. 重新派生 generator Agent，附带 Bug 列表作为反馈（Generator 会在修复前自动创建迭代安全点）
 3. 再次派生 evaluator Agent 重新评估

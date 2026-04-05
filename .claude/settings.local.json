@@ -7,7 +7,9 @@
       "Bash(python -m harness.lint.check_architecture)",
       "Bash(python -m harness.lint.check_style)",
       "Bash(python -m harness.lint.check_docs)",
-      "Bash(python -m harness.ci)"
+      "Bash(python -m harness.ci)",
+      "Bash(git tag:*)",
+      "Bash(git checkout:*)"
     ]
   },
   "hooks": {
