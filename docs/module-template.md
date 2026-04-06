@@ -15,8 +15,11 @@ src/modules/{module_name}/
 
 tests/modules/{module_name}/
 ├── __init__.py
-├── test_engine.py           # 功能测试
-└── test_benchmark.py        # 性能基准测试
+├── test_engine.py           # 单元测试（单个方法级别）
+├── test_scenarios.py        # 场景测试（多组件交互、真实游戏片段）
+├── test_benchmark.py        # 性能基准测试
+└── fixtures/                # 测试数据
+    └── scenarios.py         # 预定义场景配置
 ```
 
 ## 文件模板
@@ -146,6 +149,108 @@ def test_step_performance(benchmark, engine):
     benchmark(engine.step, state, ...)
 ```
 
+### tests/test_scenarios.py
+
+```python
+"""
+{ModuleName} 场景测试。
+
+模拟真实游戏片段，验证多组件交互下的系统行为。
+"""
+import pytest
+from harness.sim.runner import GameSimulation
+from modules.{module_name}.v1_readable.engine import {ModuleName}Engine
+
+
+@pytest.fixture
+def sim():
+    engine = {ModuleName}Engine()
+    simulation = GameSimulation(engine)
+    # 注册不变量检查
+    # simulation.add_invariant("HP 守恒", lambda before, after, actions: ...)
+    return simulation
+
+
+class TestScenario连招:
+    """场景：单实体连续操作。"""
+
+    def test_basic_combo(self, sim):
+        config = ...  # 初始化配置
+        actions = [
+            [...],  # tick 0
+            [...],  # tick 1
+        ]
+        result = sim.run(config, actions, seed=42)
+        assert result.passed, result.invariant_violations
+        # 验证最终状态
+        # assert result.final_state.xxx == expected
+
+
+class TestScenario团战:
+    """场景：多实体交互。"""
+
+    def test_multi_entity_interaction(self, sim):
+        # 多个实体同时行动
+        ...
+
+
+class TestScenario确定性:
+    """场景：确定性验证。"""
+
+    def test_determinism(self, sim):
+        config = ...
+        actions = [...]
+        assert sim.run_determinism_check(config, actions, seed=42, runs=5)
+```
+
+### tests/fixtures/scenarios.py
+
+```python
+"""
+{ModuleName} 预定义场景配置。
+
+集中管理测试用的实体属性、技能参数等配置数据。
+变量命名规则：大写开头（UPPER_SNAKE_CASE），会被 harness.fixtures 自动收集。
+"""
+from modules.{module_name}.models import ...  # 导入模块的数据模型
+
+# --- 实体配置 ---
+# HERO_WARRIOR = HeroConfig(name="战士", hp=1000, attack=80, ...)
+# HERO_MAGE = HeroConfig(name="法师", hp=600, attack=40, ...)
+
+# --- 技能/行为配置 ---
+# SKILL_FIREBALL = SkillConfig(name="火球术", damage=200, cooldown=10, ...)
+
+# --- 场景配置 ---
+# SCENARIO_1V1 = {"config": ..., "actions": [...], "seed": 42}
+# SCENARIO_TEAMFIGHT = {"config": ..., "actions": [...], "seed": 42}
+```
+
+### tests/fixtures/__init__.py
+
+```python
+"""Fixtures 包，由 harness.fixtures.discover_fixtures() 自动加载。"""
+```
+
+### tests/conftest.py（模块级）
+
+```python
+"""
+{ModuleName} 测试公共 fixtures。
+
+加载 fixtures/ 目录下的预定义数据，提供给所有测试使用。
+"""
+import pytest
+from harness.fixtures import discover_fixtures
+
+_FIXTURES = discover_fixtures("{module_name}")
+
+@pytest.fixture
+def fixtures():
+    """返回该模块所有预定义测试数据。"""
+    return _FIXTURES
+```
+
 ## 模块规格文档模板
 
 Planner Agent 生成的规格文档应包含以下章节（存放于 `docs/plans/active/{module_name}.md`）：
@@ -177,6 +282,19 @@ Planner Agent 生成的规格文档应包含以下章节（存放于 `docs/plans
 
 ## 验收标准
 具体的、可测试的验收条件列表。
+
+## 集成场景
+描述 2-3 个模拟真实游戏片段的场景，用于场景测试。每个场景包含：
+- 场景名称和描述（模拟什么情况）
+- 参与的实体和初始状态
+- 按 tick 排列的动作序列
+- 全程应保持的不变量（如 HP 守恒、死亡后不再行动）
+- 最终预期结果
+
+示例（MOBA 技能系统）：
+- 场景1：单英雄连招（Q→W→E 连续释放，验证冷却和 Buff 叠加）
+- 场景2：团战（3v3，多技能交叉，验证目标选择和伤害计算）
+- 场景3：极端边界（0 HP 英雄释放技能、同时击杀和被击杀）
 
 ## 性能目标
 定义基准测试场景和性能阈值。

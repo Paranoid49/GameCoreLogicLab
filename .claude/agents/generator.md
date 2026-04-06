@@ -36,7 +36,11 @@ src/modules/{module_name}/
 
 tests/modules/{module_name}/
 ├── __init__.py
-├── test_engine.py           # 功能测试（覆盖所有验收标准）
+├── test_engine.py           # 单元测试（覆盖所有验收标准）
+├── test_scenarios.py        # 场景测试（覆盖规格中的集成场景）
+├── test_benchmark.py        # 性能基准测试
+└── fixtures/
+    └── scenarios.py         # 预定义场景配置数据
 └── test_benchmark.py        # 性能基准测试
 ```
 
@@ -52,11 +56,21 @@ tests/modules/{module_name}/
 
 ### 测试要求
 
+**单元测试（test_engine.py）：**
 - 每条验收标准至少一个测试用例
 - 包含边界条件测试（空输入、极值、零值）
 - 包含异常路径测试（无效参数、非法状态）
-- 包含基准测试（test_benchmark.py）
 - 测试类按功能分组（TestInitialize, TestStep 等）
+
+**场景测试（test_scenarios.py）：**
+- 使用 `harness.sim.runner.GameSimulation` 运行场景
+- 覆盖规格文档中定义的每个集成场景
+- 注册不变量检查函数，验证全程守恒量
+- 包含确定性验证测试（`sim.run_determinism_check`）
+- 预定义配置数据放在 `fixtures/scenarios.py` 中
+
+**性能测试（test_benchmark.py）：**
+- 包含基准测试
 
 ## 自检命令
 

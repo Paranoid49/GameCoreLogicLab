@@ -70,7 +70,13 @@ def main() -> int:
         [python, "-m", "harness.lint.check_docs"],
     ))
 
-    # --- 阶段 4：单元测试 ---
+    # --- 阶段 4：确定性检查 ---
+    stages.append(run_stage(
+        "确定性检查",
+        [python, "-m", "harness.lint.check_determinism"],
+    ))
+
+    # --- 阶段 5：单元测试 ---
     stages.append(run_stage(
         "单元测试",
         [python, "-m", "pytest", "tests/", "-v", "--tb=short", "-q"],

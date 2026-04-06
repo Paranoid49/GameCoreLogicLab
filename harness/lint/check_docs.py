@@ -1,7 +1,7 @@
 """
 文档健康检查器。
 
-验证 docs/ 知识库的完整性和时效性。
+验证 docs/ 知识库的完整性、链接有效性和内容一致性。
 可通过 `python -m harness.lint.check_docs` 运行。
 
 检查项：
@@ -9,9 +9,12 @@
 2. Markdown 内部链接有效（相对路径指向的文件存在）
 3. 计划文档状态与目录一致（active/ 中无 completed 状态文档）
 4. 模块是否有对应的规格文档
+5. 规格文档与实际代码的一致性（接口名、模型名是否匹配）
+6. 模块测试目录结构完整性（test_engine / test_scenarios / fixtures）
 """
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from dataclasses import dataclass, field
@@ -20,6 +23,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DOCS_DIR = PROJECT_ROOT / "docs"
 MODULES_DIR = PROJECT_ROOT / "src" / "modules"
+TESTS_DIR = PROJECT_ROOT / "tests" / "modules"
 
 REQUIRED_DOCS = [
     "docs/architecture.md",
@@ -159,12 +163,110 @@ def check_module_spec_coverage(result: DocsResult) -> None:
             )
 
 
+def check_spec_code_consistency(result: DocsResult) -> None:
+    """检查规格文档中提到的类名是否在实际代码中存在。"""
+    if not MODULES_DIR.exists():
+        return
+
+    class_name_re = re.compile(r"`(\w+Engine)`|`(I\w+)`|class\s+`?(\w+)`?\s*[:(（]")
+
+    for plan_dir in [DOCS_DIR / "plans" / "active", DOCS_DIR / "plans" / "completed"]:
+        if not plan_dir.exists():
+            continue
+        for spec_file in plan_dir.glob("*.md"):
+            module_name = spec_file.stem
+            module_dir = MODULES_DIR / module_name
+            if not module_dir.exists():
+                continue
+
+            # 从规格中提取提到的类名
+            try:
+                spec_content = spec_file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            spec_classes = set()
+            for m in class_name_re.finditer(spec_content):
+                name = m.group(1) or m.group(2) or m.group(3)
+                if name:
+                    spec_classes.add(name)
+
+            if not spec_classes:
+                continue
+
+            # 从代码中提取实际定义的类名
+            code_classes = set()
+            for py_file in module_dir.rglob("*.py"):
+                try:
+                    tree = ast.parse(py_file.read_text(encoding="utf-8"))
+                except (SyntaxError, OSError, UnicodeDecodeError):
+                    continue
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        code_classes.add(node.name)
+
+            # 找出规格提到但代码中不存在的类
+            missing = spec_classes - code_classes
+            # 过滤掉明显不是本模块的类名（如公共层的类）
+            common_classes = {"BaseModel", "ABC", "GameEngine", "EventBus", "Field"}
+            missing -= common_classes
+
+            for cls in sorted(missing):
+                result.add(
+                    str(spec_file.relative_to(PROJECT_ROOT)),
+                    "docs/spec-code-drift",
+                    f"规格中提到的类 `{cls}` 在模块代码中不存在",
+                    f"在 src/modules/{module_name}/ 中实现 `{cls}`，或更新规格文档移除该引用",
+                )
+
+
+def check_test_structure(result: DocsResult) -> None:
+    """检查模块测试目录是否包含必需的测试文件。"""
+    if not MODULES_DIR.exists():
+        return
+
+    required_test_files = ["test_engine.py", "test_scenarios.py"]
+
+    for module_dir in sorted(MODULES_DIR.iterdir()):
+        if not module_dir.is_dir() or module_dir.name.startswith("_"):
+            continue
+        module_name = module_dir.name
+        test_dir = TESTS_DIR / module_name
+
+        if not test_dir.exists():
+            result.add(
+                f"tests/modules/{module_name}/", "docs/missing-test-dir",
+                f"模块 '{module_name}' 缺少测试目录",
+                f"创建 tests/modules/{module_name}/ 及必需的测试文件",
+            )
+            continue
+
+        for test_file in required_test_files:
+            if not (test_dir / test_file).exists():
+                result.add(
+                    f"tests/modules/{module_name}/", "docs/missing-test-file",
+                    f"缺少必需测试文件: {test_file}",
+                    f"创建 tests/modules/{module_name}/{test_file}，参考 docs/module-template.md",
+                )
+
+        # 检查 fixtures 目录
+        fixtures_dir = test_dir / "fixtures"
+        if not fixtures_dir.exists():
+            result.add(
+                f"tests/modules/{module_name}/", "docs/missing-fixtures",
+                f"缺少 fixtures/ 测试数据目录",
+                f"创建 tests/modules/{module_name}/fixtures/ 并添加场景配置数据",
+            )
+
+
 def run_checks() -> DocsResult:
     result = DocsResult()
     check_required_docs(result)
     check_internal_links(result)
     check_plan_status_consistency(result)
     check_module_spec_coverage(result)
+    check_spec_code_consistency(result)
+    check_test_structure(result)
     return result
 
 

@@ -77,6 +77,22 @@ import random
 2. **自己手动验证**该标准是否真的被满足（读代码逻辑，不只看测试通过）
 3. 如果 Generator 的测试通过但逻辑明显不符规格，记录为 BUG
 
+#### 3e. 场景级攻击
+
+使用 `harness.sim.runner.GameSimulation` 构造 Generator 未覆盖的复杂场景：
+- 构造多实体同时操作的场景（如 3v3 团战、多技能同时释放）
+- 构造时序边界场景（同一 tick 内多个事件触发、0 tick 冷却）
+- 构造连锁反应场景（击杀触发被动、Buff 到期触发效果）
+- 运行确定性检查：`sim.run_determinism_check(config, actions, seed=42, runs=3)`
+- 验证全程不变量是否成立
+
+#### 3f. 确定性验证
+
+验证实现是否满足确定性要求：
+- 相同种子 + 相同输入 → 必须产生完全相同的输出
+- 检查代码中是否有未种子化的 `random` 调用、`time.time()` 依赖、`set()` 遍历等非确定性来源
+- 运行 `python -m harness.lint.check_determinism`（如存在）
+
 ### 阶段 4：代码审查
 
 逐文件阅读实现代码：

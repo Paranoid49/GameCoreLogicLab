@@ -61,5 +61,6 @@ pytest tests/ --benchmark-only             # 仅运行性能基准
 python -m harness.lint.check_architecture  # 架构合规检查
 python -m harness.lint.check_style         # 代码风格检查
 python -m harness.lint.check_docs          # 文档健康检查
+python -m harness.lint.check_determinism   # 确定性检查
 python -m harness.ci                       # 一键运行完整 CI 管线
 ```
