@@ -81,17 +81,22 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
     - 种子化随机数（确保确定性）
     - 状态历史记录（含人类可读事件描述）
     - 不变量验证
-    - 回放数据导出
+    - 回放数据自动导出
 
     用法：
         engine = MyEngine()
-        sim = GameSimulation(engine)
-        result = sim.run(config, action_sequence, seed=42)
-        result.export_json("tests/modules/xxx/replays/scenario.json")
+        sim = GameSimulation(engine, replay_dir="tests/modules/xxx/replays")
+        result = sim.run(config, action_sequence, seed=42, scenario_name="基础场景")
+        # 回放 JSON 自动写入 replay_dir
     """
 
-    def __init__(self, engine: GameEngine[TState, TAction, TConfig]) -> None:
+    def __init__(
+        self,
+        engine: GameEngine[TState, TAction, TConfig],
+        replay_dir: str | Path | None = None,
+    ) -> None:
         self.engine = engine
+        self.replay_dir = Path(replay_dir) if replay_dir else None
         self._invariant_checks: list[tuple[str, callable]] = []
 
     def add_invariant(self, name: str, check_fn: callable) -> None:
@@ -108,6 +113,7 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
         config: TConfig,
         action_sequence: list[list[TAction]],
         seed: int = 0,
+        scenario_name: str = "default",
     ) -> SimulationResult:
         """
         运行完整模拟。
@@ -116,9 +122,11 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
             config: 引擎初始化配置
             action_sequence: 每个 tick 的动作列表
             seed: 随机种子（确保确定性）
+            scenario_name: 场景名称（用于回放文件命名）
 
         返回：
-            SimulationResult 包含历史、不变量违反和最终状态
+            SimulationResult 包含历史、不变量违反和最终状态。
+            如果设置了 replay_dir，回放 JSON 自动写入。
         """
         rng = random.Random(seed)  # noqa: F841 — 供子类使用
         state = self.engine.initialize(config)
@@ -161,6 +169,13 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
                     result.add_violation(
                         f"tick {record.tick}: 不变量 '{inv_name}' 检查异常 — {e}"
                     )
+
+        # 自动导出回放 JSON
+        if self.replay_dir:
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            replay_path = self.replay_dir / f"{scenario_name}_{ts}.json"
+            result.export_json(replay_path)
 
         return result
 

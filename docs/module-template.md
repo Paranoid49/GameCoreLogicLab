@@ -159,20 +159,23 @@ def test_step_performance(benchmark, engine):
 模拟真实游戏片段，验证多组件交互下的系统行为。
 """
 import pytest
+from pathlib import Path
 from harness.sim.runner import GameSimulation
 from modules.{module_name}.v1_readable.engine import {ModuleName}Engine
+
+REPLAY_DIR = Path(__file__).parent / "replays"
 
 
 @pytest.fixture
 def sim():
     engine = {ModuleName}Engine()
-    simulation = GameSimulation(engine)
+    simulation = GameSimulation(engine, replay_dir=REPLAY_DIR)
     # 注册不变量检查
     # simulation.add_invariant("守恒量", lambda before, after, actions: ...)
     return simulation
 
 
-class TestScenario连招:
+class TestScenario连续操作:
     """场景：单实体连续操作。"""
 
     def test_basic_combo(self, sim):
@@ -181,10 +184,9 @@ class TestScenario连招:
             [...],  # tick 0
             [...],  # tick 1
         ]
-        result = sim.run(config, actions, seed=42)
+        result = sim.run(config, actions, seed=42, scenario_name="连续操作")
         assert result.passed, result.invariant_violations
-        # 验证最终状态
-        # assert result.final_state.xxx == expected
+        # 回放 JSON 已自动写入 replays/ 目录
 
 
 class TestScenario多实体交互:
