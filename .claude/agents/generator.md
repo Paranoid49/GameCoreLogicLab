@@ -41,13 +41,13 @@ tests/modules/{module_name}/
 ├── test_benchmark.py        # 性能基准测试
 └── fixtures/
     └── scenarios.py         # 预定义场景配置数据
-└── test_benchmark.py        # 性能基准测试
 ```
 
 ### 编码规则
 
 - 引擎类必须继承 `src/common/interfaces.py` 中的 `GameEngine` 基类
 - 数据模型必须使用 Pydantic BaseModel，字段有类型约束
+- Action 和 State 模型建议实现 `__str__`，提供人类可读的事件/状态描述（用于回放可视化）
 - 状态变更采用不可变风格（返回新对象，不修改原对象）
 - 无跨模块 import，只通过 `common/` 通信
 - 函数不超过 50 行

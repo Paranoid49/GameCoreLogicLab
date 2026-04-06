@@ -6,9 +6,11 @@
 """
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import dataclass, field
-from typing import Generic, TypeVar
+from pathlib import Path
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -24,6 +26,7 @@ class TickRecord:
     """单个 tick 的记录。"""
     tick: int
     actions: list
+    events: list[str]
     state_before: BaseModel
     state_after: BaseModel
 
@@ -41,6 +44,34 @@ class SimulationResult:
         self.invariant_violations.append(description)
         self.passed = False
 
+    def to_replay_dict(self) -> dict[str, Any]:
+        """将结果转为可序列化的回放字典。"""
+        ticks = []
+        for record in self.history:
+            ticks.append({
+                "tick": record.tick,
+                "events": record.events,
+                "state_before": record.state_before.model_dump(),
+                "state_after": record.state_after.model_dump(),
+            })
+        return {
+            "total_ticks": self.total_ticks,
+            "final_state": self.final_state.model_dump(),
+            "ticks": ticks,
+            "invariant_violations": self.invariant_violations,
+            "passed": self.passed,
+        }
+
+    def export_json(self, path: str | Path) -> Path:
+        """导出回放 JSON 文件。"""
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(self.to_replay_dict(), ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        return path
+
 
 class GameSimulation(Generic[TState, TAction, TConfig]):
     """
@@ -48,15 +79,15 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
 
     提供 tick-by-tick 的游戏循环，支持：
     - 种子化随机数（确保确定性）
-    - 状态历史记录
+    - 状态历史记录（含人类可读事件描述）
     - 不变量验证
-    - 终态检查
+    - 回放数据导出
 
     用法：
         engine = MyEngine()
         sim = GameSimulation(engine)
         result = sim.run(config, action_sequence, seed=42)
-        assert result.passed
+        result.export_json("tests/modules/xxx/replays/scenario.json")
     """
 
     def __init__(self, engine: GameEngine[TState, TAction, TConfig]) -> None:
@@ -83,7 +114,7 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
 
         参数：
             config: 引擎初始化配置
-            action_sequence: 每个 tick 的动作列表，action_sequence[i] = 第 i 个 tick 的所有动作
+            action_sequence: 每个 tick 的动作列表
             seed: 随机种子（确保确定性）
 
         返回：
@@ -96,12 +127,16 @@ class GameSimulation(Generic[TState, TAction, TConfig]):
         for tick_idx, actions in enumerate(action_sequence):
             state_before = state.model_copy(deep=True)
 
+            # 采集事件描述：优先 __str__，fallback 到 repr
+            events = [str(action) for action in actions]
+
             for action in actions:
                 state = self.engine.step(state, action)
 
             record = TickRecord(
                 tick=tick_idx,
                 actions=actions,
+                events=events,
                 state_before=state_before,
                 state_after=state.model_copy(deep=True),
             )

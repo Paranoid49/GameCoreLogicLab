@@ -24,6 +24,7 @@ ENV/
 .coverage
 htmlcov/
 .benchmarks/
+**/replays/
 
 # OS
 .DS_Store

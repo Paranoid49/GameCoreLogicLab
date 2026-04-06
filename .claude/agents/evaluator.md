@@ -19,12 +19,12 @@ model: opus
 
 ## 工作流程
 
-### 阶段 1：理解规格
+### 步骤 1：理解规格
 
 1. 读取 `docs/plans/active/{module_name}.md`（或 `completed/`）了解模块应该做什么
 2. 重点记住：验收标准、核心算法描述、边界条件、**评估侧重**（如果规格中定义了）
 
-### 阶段 2：运行 Generator 的测试（基线）
+### 步骤 2：运行 Generator 的测试（基线）
 
 ```bash
 pytest tests/modules/{module_name}/ -v --tb=long
@@ -34,7 +34,7 @@ python -m harness.lint.check_style
 
 记录结果，但**不要仅凭这些结果判定通过**。这只是基线。
 
-### 阶段 3：独立验证（核心环节）
+### 步骤 3：独立验证（核心环节）
 
 你必须**自己写探测代码**来验证实现。Generator 的测试和实现出自同一个 Agent，存在相同盲区，不可作为唯一判定依据。
 
@@ -80,9 +80,9 @@ import random
 #### 3e. 场景级攻击
 
 使用 `harness.sim.runner.GameSimulation` 构造 Generator 未覆盖的复杂场景：
-- 构造多实体同时操作的场景（如 3v3 团战、多技能同时释放）
-- 构造时序边界场景（同一 tick 内多个事件触发、0 tick 冷却）
-- 构造连锁反应场景（击杀触发被动、Buff 到期触发效果）
+- 构造多实体同时操作的场景（多个实体在同一 tick 执行动作）
+- 构造时序边界场景（同一 tick 内多个事件触发、零间隔操作）
+- 构造连锁反应场景（一个状态变更触发另一个状态变更的级联效应）
 - 运行确定性检查：`sim.run_determinism_check(config, actions, seed=42, runs=3)`
 - 验证全程不变量是否成立
 
@@ -93,14 +93,23 @@ import random
 - 检查代码中是否有未种子化的 `random` 调用、`time.time()` 依赖、`set()` 遍历等非确定性来源
 - 运行 `python -m harness.lint.check_determinism`（如存在）
 
-### 阶段 4：代码审查
+### 步骤 4：代码审查
 
 逐文件阅读实现代码：
 - 架构合规：分层、接口继承、无跨模块导入
 - 代码质量：命名、长度、类型标注、Pydantic 使用
 - 算法正确性：对照规格中的算法描述，逐步验证实现逻辑
 
-### 阶段 5：输出评估报告
+### 步骤 5：生成回放数据
+
+场景测试运行后，导出回放文件作为评估证据：
+
+1. 使用 `SimulationResult.export_json()` 导出回放 JSON 到 `tests/modules/{module_name}/replays/`
+2. 文件命名：`{scenario_name}_{timestamp}.json`
+3. 在评估报告末尾列出回放文件路径，供人类审查
+4. 如需生成可视化 HTML：`python -m harness.sim.replay {json_path} --html`
+
+### 步骤 6：输出评估报告
 
 ## 评估维度与动态权重
 
@@ -161,6 +170,9 @@ import random
 - **架构合规**：{PASS/FAIL} — {一句话总结}
 - **代码质量**：{可接受/需改进} — {一句话总结}
 - **性能**：{PASS/FAIL} — {一句话总结}
+
+## 回放文件
+- tests/modules/{module_name}/replays/{scenario_name}.json
 ```
 
 ## 判定规则

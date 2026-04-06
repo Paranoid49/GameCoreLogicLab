@@ -50,12 +50,13 @@ class ExampleState(BaseModel):
 
 定义引擎必须实现的契约。
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from common.interfaces import GameEngine
 from .models import ExampleState
 
 
-class I{ModuleName}Engine(ABC):
-    """引擎接口，定义核心操作。"""
+class I{ModuleName}Engine(GameEngine):
+    """引擎接口，继承 GameEngine 基类，定义模块特有操作。"""
 
     @abstractmethod
     def initialize(self, config: ...) -> ExampleState:
@@ -167,7 +168,7 @@ def sim():
     engine = {ModuleName}Engine()
     simulation = GameSimulation(engine)
     # 注册不变量检查
-    # simulation.add_invariant("HP 守恒", lambda before, after, actions: ...)
+    # simulation.add_invariant("守恒量", lambda before, after, actions: ...)
     return simulation
 
 
@@ -186,7 +187,7 @@ class TestScenario连招:
         # assert result.final_state.xxx == expected
 
 
-class TestScenario团战:
+class TestScenario多实体交互:
     """场景：多实体交互。"""
 
     def test_multi_entity_interaction(self, sim):
@@ -288,13 +289,13 @@ Planner Agent 生成的规格文档应包含以下章节（存放于 `docs/plans
 - 场景名称和描述（模拟什么情况）
 - 参与的实体和初始状态
 - 按 tick 排列的动作序列
-- 全程应保持的不变量（如 HP 守恒、死亡后不再行动）
+- 全程应保持的不变量（如守恒量、状态约束）
 - 最终预期结果
 
-示例（MOBA 技能系统）：
-- 场景1：单英雄连招（Q→W→E 连续释放，验证冷却和 Buff 叠加）
-- 场景2：团战（3v3，多技能交叉，验证目标选择和伤害计算）
-- 场景3：极端边界（0 HP 英雄释放技能、同时击杀和被击杀）
+示例场景设计思路：
+- 场景1：单实体连续操作（验证状态连续变更的正确性）
+- 场景2：多实体同时交互（验证并发操作、目标选择、优先级处理）
+- 场景3：极端边界（零值/极值输入、非法状态下的操作、同时触发的冲突事件）
 
 ## 性能目标
 定义基准测试场景和性能阈值。

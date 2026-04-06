@@ -106,6 +106,39 @@ src/modules/{module_name}/
 - 禁止依赖 `set()` 遍历顺序作为逻辑依据（虽然 Python 3.7+ dict 有序，但 set 无序）
 - 引擎的 `step()` 方法必须是纯函数风格：只依赖输入参数和内部状态，不依赖外部环境
 
+## 可观测性约定
+
+### 回放数据
+
+模拟运行器（`harness/sim/runner.py`）自动记录每个 tick 的状态快照和事件描述，支持导出为标准 JSON 回放文件。
+
+- **事件描述来源**：Action 模型的 `__str__` 方法。建议所有 Action 模型实现 `__str__`，返回人类可读的事件描述
+- **状态序列化**：Pydantic 的 `model_dump()` 自动处理，无需额外代码
+- **回放文件位置**：`tests/modules/{name}/replays/`（已 .gitignore 排除）
+
+### 可视化层级
+
+回放查看器（`harness/viewer/template.html`）自动检测状态数据类型，渐进渲染：
+
+1. **基础层**（始终存在）：时间轴 + 播放控制 + 事件日志 + 状态面板
+2. **数值层**（自动检测 int/float 字段）：折线图展示数值随 tick 变化
+3. **空间层**（自动检测 Position 字段）：2D 画布渲染实体位置和运动轨迹
+4. **自定义层**（可选）：模块提供 `render.js` 扩展渲染逻辑
+
+### Action 模型的 `__str__` 建议
+
+```python
+class SomeAction(BaseModel):
+    action_type: str
+    source: EntityId
+    target: EntityId
+
+    def __str__(self) -> str:
+        return f"{self.source} 对 {self.target} 执行 {self.action_type}"
+```
+
+未实现 `__str__` 时，回放日志回退到 `repr()` 输出（类名 + 字段值），可用但可读性较差。
+
 ## 命名约定
 
 - 模块目录名：`snake_case`（如 `turn_order`、`skill_system`）
