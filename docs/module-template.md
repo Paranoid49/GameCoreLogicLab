@@ -9,9 +9,7 @@ src/modules/{module_name}/
 ├── __init__.py              # 导出公共 API
 ├── models.py                # Pydantic 数据模型
 ├── interfaces.py            # ABC 接口定义
-└── v1_readable/
-    ├── __init__.py
-    └── engine.py            # 可读性优先实现
+└── engine.py                # 核心逻辑实现
 
 tests/modules/{module_name}/
 ├── __init__.py
@@ -69,16 +67,14 @@ class I{ModuleName}Engine(GameEngine):
         ...
 ```
 
-### v1_readable/engine.py
+### engine.py
 
 ```python
 """
-{ModuleName} 引擎 — 可读性优先实现。
-
-优先考虑代码清晰度和可理解性。
+{ModuleName} 核心引擎实现。
 """
-from ..interfaces import I{ModuleName}Engine
-from ..models import ExampleState
+from .interfaces import I{ModuleName}Engine
+from .models import ExampleState
 
 
 class {ModuleName}Engine(I{ModuleName}Engine):
@@ -100,7 +96,7 @@ class {ModuleName}Engine(I{ModuleName}Engine):
 {ModuleName} 引擎功能测试。
 """
 import pytest
-from modules.{module_name}.v1_readable.engine import {ModuleName}Engine
+from modules.{module_name}.engine import {ModuleName}Engine
 
 
 @pytest.fixture
@@ -135,7 +131,7 @@ class TestStep:
 {ModuleName} 性能基准测试。
 """
 import pytest
-from modules.{module_name}.v1_readable.engine import {ModuleName}Engine
+from modules.{module_name}.engine import {ModuleName}Engine
 
 
 @pytest.fixture
@@ -161,7 +157,7 @@ def test_step_performance(benchmark, engine):
 import pytest
 from pathlib import Path
 from harness.sim.runner import GameSimulation
-from modules.{module_name}.v1_readable.engine import {ModuleName}Engine
+from modules.{module_name}.engine import {ModuleName}Engine
 
 REPLAY_DIR = Path(__file__).parent / "replays"
 

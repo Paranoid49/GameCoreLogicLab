@@ -25,10 +25,7 @@ src/
     └── {module_name}/
         ├── models.py        #   模块数据模型
         ├── interfaces.py    #   模块引擎接口
-        ├── v1_readable/     #   可读性优先实现
-        │   └── engine.py
-        └── v2_optimized/    #   性能优先实现（可选）
-            └── engine.py
+        └── engine.py        #   核心逻辑实现
 ```
 
 **分层规则**：Models → Interfaces → Engine → Simulation，依赖方向严格单向向下，模块间禁止直接依赖。

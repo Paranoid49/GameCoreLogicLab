@@ -3,7 +3,6 @@
 感谢你对 GameCoreLogicLab 的关注！本项目欢迎以下类型的贡献：
 
 - 新增游戏核心机制模块
-- 为已有模块添加 v2_optimized 性能优化实现
 - 改进 harness 工具和质量检查
 - 修复 bug 和完善文档
 

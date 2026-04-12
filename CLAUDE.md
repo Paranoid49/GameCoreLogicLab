@@ -22,8 +22,7 @@ Models → Interfaces → Engine → Simulation
 ```
 
 - 模块间禁止直接依赖，只通过 `src/common/` 通信
-- 可有 `v1_readable/`（可读优先）和 `v2_optimized/`（性能优先）两种实现
-- 两种实现必须遵循同一接口
+- 每个模块包含 models.py、interfaces.py、engine.py
 
 ## 新模块创建
 

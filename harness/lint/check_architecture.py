@@ -22,9 +22,7 @@ SRC_DIR = PROJECT_ROOT / "src"
 MODULES_DIR = SRC_DIR / "modules"
 
 # 模块内必需文件
-REQUIRED_FILES = ["__init__.py", "models.py", "interfaces.py"]
-# 至少存在一个引擎实现
-ENGINE_DIRS = ["v1_readable", "v2_optimized"]
+REQUIRED_FILES = ["__init__.py", "models.py", "interfaces.py", "engine.py"]
 
 # 分层顺序（索引越小越底层）
 LAYER_ORDER = {
@@ -99,10 +97,6 @@ def _classify_layer(file_path: Path) -> str | None:
         return "engine"
     if name == "simulation" or name.startswith("sim_"):
         return "simulation"
-    # 在 v1_readable/ 或 v2_optimized/ 下的文件视为 engine 层
-    for parent in file_path.parents:
-        if parent.name in ENGINE_DIRS:
-            return "engine"
     return None
 
 
@@ -119,15 +113,6 @@ def check_module_structure(module_dir: Path, result: CheckResult) -> None:
                 f"缺少必需文件: {required}",
                 f"创建 {rel / required}，参考 docs/module-template.md",
             )
-
-    has_engine = any((module_dir / d / "engine.py").exists() for d in ENGINE_DIRS)
-    if not has_engine:
-        result.add(
-            str(rel),
-            "structure/missing-engine",
-            "至少需要一个引擎实现（v1_readable/engine.py 或 v2_optimized/engine.py）",
-            f"创建 {rel}/v1_readable/engine.py，参考 docs/module-template.md",
-        )
 
 
 def check_cross_module_imports(module_dir: Path, result: CheckResult) -> None:

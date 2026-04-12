@@ -32,12 +32,7 @@ src/modules/{module_name}/
 ├── __init__.py
 ├── models.py              # 数据模型
 ├── interfaces.py          # 接口定义
-├── v1_readable/
-│   ├── __init__.py
-│   └── engine.py          # 可读性优先实现
-└── v2_optimized/          # 可选：性能优先实现
-    ├── __init__.py
-    └── engine.py
+└── engine.py              # 核心逻辑实现
 ```
 
 ## 依赖规则

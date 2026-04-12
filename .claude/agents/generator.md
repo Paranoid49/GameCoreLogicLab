@@ -30,9 +30,7 @@ src/modules/{module_name}/
 ├── __init__.py              # 导出公共 API
 ├── models.py                # Pydantic 数据模型
 ├── interfaces.py            # ABC 接口定义
-└── v1_readable/
-    ├── __init__.py
-    └── engine.py            # 可读性优先实现
+└── engine.py                # 核心逻辑实现
 
 tests/modules/{module_name}/
 ├── __init__.py
