@@ -95,6 +95,50 @@ src/modules/{module_name}/
 - 模块 A 实现该接口，模块 B 的引擎接受接口实例作为参数
 - 组合在使用侧（测试或模拟运行器中）完成
 
+## 功能分级与配置化
+
+每个游戏模块的功能分为两级：
+
+- **核心功能**：该机制的本质能力，必须实现，不可关闭
+- **可选功能**：扩展能力，通过配置项启用/禁用，默认关闭
+
+### 配置模型规范
+
+模块的 Config 模型必须将可选功能设计为开关项：
+
+```python
+class SomeConfig(BaseModel):
+    """模块配置。"""
+    # --- 核心参数（始终生效）---
+    core_param: float = Field(description="核心参数说明")
+
+    # --- 可选功能开关 ---
+    enable_feature_a: bool = Field(default=False, description="是否启用功能 A")
+    feature_a_param: float = Field(default=0.0, description="功能 A 的参数（仅启用时生效）")
+```
+
+### 引擎实现规范
+
+引擎在处理可选功能时必须检查配置开关：
+
+```python
+def step(self, state, action):
+    # 核心逻辑（始终执行）
+    state = self._core_logic(state, action)
+
+    # 可选功能（仅在启用时执行）
+    if state.config.enable_feature_a:
+        state = self._apply_feature_a(state)
+
+    return state
+```
+
+### 测试覆盖要求
+
+- 核心功能：所有测试默认覆盖
+- 可选功能：独立测试类，分别测试启用和禁用两种状态
+- 场景测试：分别提供纯核心场景和启用可选功能的场景
+
 ## 确定性要求
 
 游戏核心逻辑必须满足确定性：**相同输入 + 相同种子 = 完全相同的输出**。

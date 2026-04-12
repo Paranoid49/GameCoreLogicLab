@@ -5,315 +5,413 @@
 <title>GameCoreLogicLab - 回放查看器</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: 'Consolas', 'Monaco', monospace; background: #1a1a2e; color: #e0e0e0; display: flex; height: 100vh; }
+body { font-family: 'Consolas', 'Monaco', monospace; background: #111827; color: #e5e7eb; display: flex; flex-direction: column; height: 100vh; }
 
-/* 左侧：事件日志 */
-#event-panel { width: 35%; border-right: 1px solid #333; display: flex; flex-direction: column; }
-#event-panel h3 { padding: 12px; background: #16213e; border-bottom: 1px solid #333; }
-#event-log { flex: 1; overflow-y: auto; padding: 8px; font-size: 13px; }
-.event-tick { margin-bottom: 12px; }
-.event-tick-header { color: #00d2ff; font-weight: bold; cursor: pointer; padding: 4px; border-radius: 4px; }
-.event-tick-header:hover { background: #16213e; }
-.event-tick-header.active { background: #0f3460; }
-.event-item { padding: 2px 8px 2px 20px; color: #b0b0b0; }
-.event-diff { padding: 1px 8px 1px 28px; color: #7a7; font-size: 12px; }
+/* 顶部控制栏 */
+#controls {
+  padding: 10px 16px; background: #1f2937; border-bottom: 2px solid #374151;
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+}
+#controls button {
+  background: #374151; border: 1px solid #4b5563; color: #e5e7eb;
+  padding: 5px 12px; cursor: pointer; border-radius: 4px; font-size: 13px;
+}
+#controls button:hover { background: #4b5563; }
+#controls button.active { background: #2563eb; border-color: #3b82f6; }
+#timeline { flex: 1; accent-color: #3b82f6; }
+#tick-display { min-width: 120px; text-align: center; color: #60a5fa; font-weight: bold; }
+#speed-group { display: flex; gap: 4px; align-items: center; }
+#speed-group label { color: #9ca3af; font-size: 12px; }
+#speed { background: #374151; border: 1px solid #4b5563; color: #e5e7eb; padding: 3px 6px; border-radius: 4px; }
 
-/* 右侧：可视化区域 */
+/* 主体区域 */
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* 左栏：事件日志 */
+#event-panel { width: 280px; border-right: 2px solid #374151; display: flex; flex-direction: column; flex-shrink: 0; }
+#event-panel .panel-header { padding: 8px 12px; background: #1f2937; border-bottom: 1px solid #374151; font-size: 13px; color: #9ca3af; font-weight: bold; }
+#event-log { flex: 1; overflow-y: auto; padding: 6px; font-size: 12px; }
+.tick-group { margin-bottom: 2px; }
+.tick-header {
+  color: #60a5fa; font-weight: bold; cursor: pointer; padding: 3px 6px;
+  border-radius: 3px; font-size: 12px; display: flex; align-items: center; gap: 6px;
+}
+.tick-header:hover { background: #1f2937; }
+.tick-header.active { background: #1e3a5f; border-left: 3px solid #3b82f6; }
+.tick-header .tick-num { min-width: 50px; }
+.tick-header .tick-summary { color: #6b7280; font-weight: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tick-event { padding: 1px 6px 1px 24px; color: #d1d5db; font-size: 11px; }
+.tick-diff { padding: 1px 6px 1px 30px; color: #4ade80; font-size: 11px; }
+.tick-diff.negative { color: #f87171; }
+
+/* 中栏：可视化 */
 #viz-panel { flex: 1; display: flex; flex-direction: column; }
 
-/* 播放控制栏 */
-#controls { padding: 12px; background: #16213e; border-bottom: 1px solid #333; display: flex; align-items: center; gap: 12px; }
-#controls button { background: #0f3460; border: 1px solid #555; color: #e0e0e0; padding: 6px 14px; cursor: pointer; border-radius: 4px; font-size: 14px; }
-#controls button:hover { background: #1a5276; }
-#timeline { flex: 1; }
-#tick-display { min-width: 100px; text-align: center; color: #00d2ff; }
-
-/* 画布区域（空间层） */
-#canvas-container { flex: 1; position: relative; min-height: 200px; }
-#spatial-canvas { width: 100%; height: 100%; background: #0a0a1a; }
-#no-spatial { display: flex; align-items: center; justify-content: center; height: 100%; color: #555; font-size: 16px; }
-
-/* 状态面板 + 数值图表 */
-#bottom-panel { display: flex; height: 35%; border-top: 1px solid #333; }
-#state-panel { width: 50%; overflow-y: auto; padding: 12px; border-right: 1px solid #333; }
-#state-panel h3 { margin-bottom: 8px; color: #00d2ff; }
-.state-field { padding: 2px 0; font-size: 13px; }
-.state-key { color: #999; }
-.state-val { color: #e0e0e0; }
-.state-changed { color: #ff6b6b; font-weight: bold; }
+/* 空间画布 */
+#canvas-section { flex: 1; position: relative; border-bottom: 2px solid #374151; }
+#canvas-section .panel-header { position: absolute; top: 0; left: 0; right: 0; padding: 6px 12px; background: rgba(31,41,55,0.85); z-index: 1; font-size: 13px; color: #9ca3af; font-weight: bold; }
+#spatial-canvas { width: 100%; height: 100%; background: #0f172a; }
+#no-spatial { display: flex; align-items: center; justify-content: center; height: 100%; color: #4b5563; font-size: 14px; background: #0f172a; }
 
 /* 数值图表 */
-#chart-panel { flex: 1; padding: 12px; }
-#chart-panel h3 { margin-bottom: 8px; color: #00d2ff; }
-#chart-canvas { width: 100%; height: calc(100% - 30px); }
+#chart-section { height: 200px; border-bottom: 2px solid #374151; position: relative; }
+#chart-section .panel-header { padding: 6px 12px; background: #1f2937; border-bottom: 1px solid #374151; font-size: 13px; color: #9ca3af; font-weight: bold; }
+#chart-canvas { width: 100%; height: calc(100% - 30px); background: #0f172a; }
+
+/* 右栏：状态面板 */
+#state-panel { width: 320px; border-left: 2px solid #374151; display: flex; flex-direction: column; flex-shrink: 0; }
+#state-panel .panel-header { padding: 8px 12px; background: #1f2937; border-bottom: 1px solid #374151; font-size: 13px; color: #9ca3af; font-weight: bold; }
+#state-content { flex: 1; overflow-y: auto; padding: 8px 12px; font-size: 12px; }
+.state-entity { margin-bottom: 10px; border: 1px solid #374151; border-radius: 4px; overflow: hidden; }
+.state-entity-header { background: #1f2937; padding: 4px 8px; font-weight: bold; color: #60a5fa; font-size: 12px; display: flex; justify-content: space-between; cursor: pointer; }
+.state-entity-header .entity-badge { background: #374151; padding: 1px 6px; border-radius: 8px; font-size: 10px; color: #9ca3af; }
+.state-entity-body { padding: 4px 8px; }
+.state-row { display: flex; justify-content: space-between; padding: 1px 0; border-bottom: 1px solid #1f2937; }
+.state-key { color: #9ca3af; }
+.state-val { color: #e5e7eb; }
+.state-changed { color: #fbbf24; font-weight: bold; }
+.state-increased { color: #4ade80; }
+.state-decreased { color: #f87171; }
+
+/* 底部状态栏 */
+#status-bar { padding: 4px 16px; background: #1f2937; border-top: 1px solid #374151; font-size: 11px; color: #6b7280; display: flex; gap: 20px; flex-shrink: 0; }
 </style>
 </head>
 <body>
 
-<div id="event-panel">
-  <h3>事件日志</h3>
-  <div id="event-log"></div>
-</div>
-
-<div id="viz-panel">
-  <div id="controls">
-    <button id="btn-prev">◀</button>
-    <button id="btn-play">▶ 播放</button>
-    <button id="btn-next">▶</button>
-    <input type="range" id="timeline" min="0" value="0">
-    <span id="tick-display">tick 0 / 0</span>
+<div id="controls">
+  <button id="btn-start" title="跳到开头">⏮</button>
+  <button id="btn-prev" title="上一 tick">◀</button>
+  <button id="btn-play" title="播放/暂停">▶</button>
+  <button id="btn-next" title="下一 tick">▶</button>
+  <button id="btn-end" title="跳到末尾">⏭</button>
+  <input type="range" id="timeline" min="0" value="0">
+  <span id="tick-display">tick 0 / 0</span>
+  <div id="speed-group">
+    <label>速度:</label>
     <select id="speed">
-      <option value="2000">0.5x</option>
-      <option value="1000" selected>1x</option>
-      <option value="500">2x</option>
-      <option value="200">5x</option>
+      <option value="500">2 tps</option>
+      <option value="200">5 tps</option>
+      <option value="100">10 tps</option>
+      <option value="33" selected>30 tps</option>
+      <option value="16">60 tps</option>
+      <option value="8">120 tps</option>
+      <option value="1">最大</option>
     </select>
   </div>
+</div>
 
-  <div id="canvas-container">
-    <canvas id="spatial-canvas"></canvas>
-    <div id="no-spatial">未检测到空间数据（Position 字段）</div>
+<div id="main">
+  <div id="event-panel">
+    <div class="panel-header">事件日志</div>
+    <div id="event-log"></div>
   </div>
 
-  <div id="bottom-panel">
-    <div id="state-panel">
-      <h3>当前状态</h3>
-      <div id="state-content"></div>
+  <div id="viz-panel">
+    <div id="canvas-section">
+      <div class="panel-header">空间视图</div>
+      <canvas id="spatial-canvas"></canvas>
+      <div id="no-spatial">未检测到空间数据（Position 字段）</div>
     </div>
-    <div id="chart-panel">
-      <h3>数值趋势</h3>
+    <div id="chart-section">
+      <div class="panel-header">数值趋势</div>
       <canvas id="chart-canvas"></canvas>
     </div>
   </div>
+
+  <div id="state-panel">
+    <div class="panel-header">实体状态 <span id="state-tick-label"></span></div>
+    <div id="state-content"></div>
+  </div>
+</div>
+
+<div id="status-bar">
+  <span id="status-total"></span>
+  <span id="status-violations"></span>
+  <span id="status-result"></span>
 </div>
 
 <script>
 /*__REPLAY_DATA__*/
 
-// ========== 初始化 ==========
 const data = (typeof REPLAY_DATA !== 'undefined') ? REPLAY_DATA : {ticks: [], total_ticks: 0};
 let currentTick = 0;
 let playing = false;
 let playTimer = null;
 let hasSpatial = false;
-let numericFields = [];
+let numericPaths = [];
 
-const timeline = document.getElementById('timeline');
-const tickDisplay = document.getElementById('tick-display');
-const eventLog = document.getElementById('event-log');
-const stateContent = document.getElementById('state-content');
-const spatialCanvas = document.getElementById('spatial-canvas');
-const chartCanvas = document.getElementById('chart-canvas');
-const noSpatial = document.getElementById('no-spatial');
+const $ = id => document.getElementById(id);
+const timeline = $('timeline');
+const tickDisplay = $('tick-display');
+const eventLog = $('event-log');
+const stateContent = $('state-content');
+const spatialCanvas = $('spatial-canvas');
+const chartCanvas = $('chart-canvas');
+const noSpatial = $('no-spatial');
 
 timeline.max = Math.max(0, data.total_ticks - 1);
 
+// 状态栏
+$('status-total').textContent = `总 ticks: ${data.total_ticks}`;
+const vCount = (data.invariant_violations || []).length;
+$('status-violations').textContent = `不变量违反: ${vCount}`;
+$('status-result').textContent = data.passed ? '✓ 通过' : '✗ 未通过';
+$('status-result').style.color = data.passed ? '#4ade80' : '#f87171';
+
 // ========== 数据分析 ==========
 function analyzeData() {
-  if (data.ticks.length === 0) return;
+  if (!data.ticks.length) return;
   const sample = data.ticks[0].state_after;
-  // 检测空间数据（含 x, y 字段的对象）
   hasSpatial = detectSpatial(sample);
-  if (hasSpatial) {
-    noSpatial.style.display = 'none';
-  } else {
-    spatialCanvas.style.display = 'none';
-  }
-  // 检测数值字段
-  numericFields = detectNumericFields(sample);
+  noSpatial.style.display = hasSpatial ? 'none' : 'flex';
+  spatialCanvas.style.display = hasSpatial ? 'block' : 'none';
+  numericPaths = detectNumericPaths(sample).slice(0, 8);
 }
 
-function detectSpatial(obj, path = '') {
-  if (obj === null || typeof obj !== 'object') return false;
+function detectSpatial(obj) {
+  if (!obj || typeof obj !== 'object') return false;
   if ('x' in obj && 'y' in obj && typeof obj.x === 'number') return true;
-  for (const [k, v] of Object.entries(obj)) {
+  for (const v of Object.values(obj)) {
     if (typeof v === 'object' && v !== null) {
-      if (detectSpatial(v, path + '.' + k)) return true;
-    }
-    if (Array.isArray(v)) {
-      for (const item of v) {
-        if (detectSpatial(item, path + '.' + k + '[]')) return true;
-      }
+      if (Array.isArray(v)) { for (const item of v) if (detectSpatial(item)) return true; }
+      else if (detectSpatial(v)) return true;
     }
   }
   return false;
 }
 
-function detectNumericFields(obj, path = '', result = []) {
-  if (obj === null || typeof obj !== 'object') return result;
+function detectNumericPaths(obj, prefix = '', result = []) {
+  if (!obj || typeof obj !== 'object') return result;
   for (const [k, v] of Object.entries(obj)) {
-    const p = path ? path + '.' + k : k;
+    const p = prefix ? prefix + '.' + k : k;
     if (typeof v === 'number') result.push(p);
-    else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      detectNumericFields(v, p, result);
-    }
+    else if (typeof v === 'object' && v !== null && !Array.isArray(v)) detectNumericPaths(v, p, result);
   }
   return result;
 }
 
-function getNestedValue(obj, path) {
+function getVal(obj, path) {
   return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : null, obj);
 }
 
-// ========== 渲染 ==========
+// ========== 事件日志 ==========
 function renderEventLog() {
   let html = '';
   for (const tick of data.ticks) {
-    const isActive = tick.tick === currentTick ? ' active' : '';
-    html += `<div class="event-tick">`;
-    html += `<div class="event-tick-header${isActive}" onclick="goToTick(${tick.tick})">tick ${tick.tick}</div>`;
-    for (const ev of tick.events || []) {
-      html += `<div class="event-item">${escHtml(ev)}</div>`;
-    }
-    // 简略 diff
-    const diffs = diffObj(tick.state_before, tick.state_after);
-    for (const d of diffs.slice(0, 10)) {
-      html += `<div class="event-diff">${escHtml(d)}</div>`;
+    const isActive = tick.tick === currentTick;
+    const cls = isActive ? ' active' : '';
+    const summary = (tick.events || []).length ? tick.events[0].substring(0, 30) : '';
+    html += `<div class="tick-group">`;
+    html += `<div class="tick-header${cls}" onclick="goToTick(${tick.tick})"><span class="tick-num">tick ${tick.tick}</span><span class="tick-summary">${escHtml(summary)}</span></div>`;
+    if (isActive) {
+      for (const ev of tick.events || []) html += `<div class="tick-event">${escHtml(ev)}</div>`;
+      for (const d of diffObj(tick.state_before, tick.state_after).slice(0, 15)) {
+        const cls2 = d.includes('→') && parseFloat(d.split('→')[1]) < parseFloat(d.split('→')[0].split(':').pop()) ? ' negative' : '';
+        html += `<div class="tick-diff${cls2}">${escHtml(d)}</div>`;
+      }
     }
     html += `</div>`;
   }
   eventLog.innerHTML = html;
-  // 滚动到当前 tick
   const active = eventLog.querySelector('.active');
-  if (active) active.scrollIntoView({block: 'nearest'});
+  if (active) active.scrollIntoView({block: 'nearest', behavior: 'smooth'});
 }
 
+// ========== 状态面板 ==========
 function renderState() {
-  if (data.ticks.length === 0) { stateContent.innerHTML = '无数据'; return; }
+  if (!data.ticks.length) { stateContent.innerHTML = '无数据'; return; }
   const tick = data.ticks[currentTick];
   if (!tick) return;
+  $('state-tick-label').textContent = `(tick ${currentTick})`;
   const state = tick.state_after;
   const prev = tick.state_before;
-  stateContent.innerHTML = renderObj(state, prev);
+  stateContent.innerHTML = buildStateHtml(state, prev);
 }
 
-function renderObj(obj, prev, indent = 0) {
-  if (obj === null || typeof obj !== 'object') return escHtml(String(obj));
+function buildStateHtml(state, prev) {
+  // 尝试识别实体列表（数组型）或单一状态
   let html = '';
-  const pad = '  '.repeat(indent);
-  for (const [k, v] of Object.entries(obj)) {
-    const prevV = prev ? prev[k] : undefined;
-    const changed = JSON.stringify(v) !== JSON.stringify(prevV);
-    const cls = changed ? ' state-changed' : '';
-    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
-      html += `<div class="state-field">${pad}<span class="state-key">${k}:</span></div>`;
-      html += renderObj(v, prevV, indent + 1);
+  for (const [k, v] of Object.entries(state)) {
+    if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
+      // 实体列表
+      const prevArr = prev ? prev[k] || [] : [];
+      for (let i = 0; i < v.length; i++) {
+        const entity = v[i];
+        const prevEntity = prevArr[i] || {};
+        const label = entity.name || entity.id || `${k}[${i}]`;
+        html += renderEntityCard(label, entity, prevEntity, i);
+      }
+    } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      const prevV = prev ? prev[k] || {} : {};
+      html += renderEntityCard(k, v, prevV, 0);
     } else {
-      html += `<div class="state-field${cls}">${pad}<span class="state-key">${k}:</span> <span class="state-val">${escHtml(JSON.stringify(v))}</span></div>`;
+      const prevV = prev ? prev[k] : undefined;
+      const changed = JSON.stringify(v) !== JSON.stringify(prevV);
+      const cls = changed ? getChangeClass(prevV, v) : '';
+      html += `<div class="state-row"><span class="state-key">${k}</span><span class="state-val${cls}">${JSON.stringify(v)}</span></div>`;
     }
   }
   return html;
 }
 
-// ========== 空间层渲染 ==========
+function renderEntityCard(label, entity, prevEntity, colorIdx) {
+  const colors = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#06b6d4','#f97316'];
+  const color = colors[colorIdx % colors.length];
+  let html = `<div class="state-entity">`;
+  html += `<div class="state-entity-header" style="border-left:3px solid ${color}"><span>${escHtml(String(label))}</span></div>`;
+  html += `<div class="state-entity-body">`;
+  for (const [k, v] of Object.entries(entity)) {
+    if (typeof v === 'object' && v !== null) continue; // 跳过嵌套对象
+    const prevV = prevEntity[k];
+    const changed = JSON.stringify(v) !== JSON.stringify(prevV);
+    const cls = changed ? getChangeClass(prevV, v) : '';
+    html += `<div class="state-row"><span class="state-key">${k}</span><span class="state-val${cls}">${v}</span></div>`;
+  }
+  html += `</div></div>`;
+  return html;
+}
+
+function getChangeClass(prevV, newV) {
+  if (typeof prevV === 'number' && typeof newV === 'number') {
+    return newV > prevV ? ' state-increased' : newV < prevV ? ' state-decreased' : ' state-changed';
+  }
+  return ' state-changed';
+}
+
+// ========== 空间渲染 ==========
 function renderSpatial() {
-  if (!hasSpatial || data.ticks.length === 0) return;
+  if (!hasSpatial || !data.ticks.length) return;
   const ctx = spatialCanvas.getContext('2d');
   const rect = spatialCanvas.parentElement.getBoundingClientRect();
   spatialCanvas.width = rect.width;
-  spatialCanvas.height = rect.height;
-  ctx.fillStyle = '#0a0a1a';
+  spatialCanvas.height = rect.height - 30;
+  ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, spatialCanvas.width, spatialCanvas.height);
 
-  // 收集所有位置数据确定坐标范围
-  const positions = [];
-  for (const tick of data.ticks) {
-    collectPositions(tick.state_after, positions);
+  const allPos = [];
+  for (const tick of data.ticks) collectPositions(tick.state_after, allPos);
+  if (!allPos.length) return;
+
+  const pad = 40;
+  const minX = Math.min(...allPos.map(p => p.x)) - 5;
+  const maxX = Math.max(...allPos.map(p => p.x)) + 5;
+  const minY = Math.min(...allPos.map(p => p.y)) - 5;
+  const maxY = Math.max(...allPos.map(p => p.y)) + 5;
+  const w = spatialCanvas.width - pad * 2;
+  const h = spatialCanvas.height - pad * 2;
+  const scale = Math.min(w / (maxX - minX || 1), h / (maxY - minY || 1));
+  const ox = pad + (w - (maxX - minX) * scale) / 2;
+  const oy = pad + (h - (maxY - minY) * scale) / 2;
+  const toS = (x, y) => [ox + (x - minX) * scale, oy + (y - minY) * scale];
+
+  // 网格
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 0.5;
+  for (let gx = Math.floor(minX); gx <= Math.ceil(maxX); gx += Math.ceil((maxX - minX) / 10) || 1) {
+    const [sx] = toS(gx, 0);
+    ctx.beginPath(); ctx.moveTo(sx, pad); ctx.lineTo(sx, spatialCanvas.height - pad); ctx.stroke();
   }
-  if (positions.length === 0) return;
+  for (let gy = Math.floor(minY); gy <= Math.ceil(maxY); gy += Math.ceil((maxY - minY) / 10) || 1) {
+    const [, sy] = toS(0, gy);
+    ctx.beginPath(); ctx.moveTo(pad, sy); ctx.lineTo(spatialCanvas.width - pad, sy); ctx.stroke();
+  }
 
-  const minX = Math.min(...positions.map(p => p.x)) - 10;
-  const maxX = Math.max(...positions.map(p => p.x)) + 10;
-  const minY = Math.min(...positions.map(p => p.y)) - 10;
-  const maxY = Math.max(...positions.map(p => p.y)) + 10;
-  const scaleX = spatialCanvas.width / (maxX - minX || 1);
-  const scaleY = spatialCanvas.height / (maxY - minY || 1);
-  const scale = Math.min(scaleX, scaleY) * 0.9;
-  const offsetX = (spatialCanvas.width - (maxX - minX) * scale) / 2;
-  const offsetY = (spatialCanvas.height - (maxY - minY) * scale) / 2;
+  const colors = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#06b6d4','#f97316'];
 
-  const toScreen = (x, y) => [
-    offsetX + (x - minX) * scale,
-    offsetY + (y - minY) * scale,
-  ];
-
-  // 画历史轨迹（淡色）
-  ctx.strokeStyle = 'rgba(0, 210, 255, 0.15)';
-  ctx.lineWidth = 1;
-  for (let t = 0; t < currentTick; t++) {
-    const posBefore = [];
-    collectPositions(data.ticks[t].state_before, posBefore);
-    const posAfter = [];
-    collectPositions(data.ticks[t].state_after, posAfter);
-    for (let i = 0; i < Math.min(posBefore.length, posAfter.length); i++) {
-      const [x1, y1] = toScreen(posBefore[i].x, posBefore[i].y);
-      const [x2, y2] = toScreen(posAfter[i].x, posAfter[i].y);
+  // 轨迹线
+  for (let t = 0; t <= currentTick; t++) {
+    const pos = []; collectPositions(data.ticks[t].state_after, pos);
+    const posPrev = []; collectPositions(data.ticks[t].state_before, posPrev);
+    const alpha = 0.1 + 0.3 * (t / Math.max(1, currentTick));
+    for (let i = 0; i < Math.min(pos.length, posPrev.length); i++) {
+      ctx.strokeStyle = colors[i % colors.length] + Math.round(alpha * 255).toString(16).padStart(2, '0');
+      ctx.lineWidth = 1.5;
+      const [x1, y1] = toS(posPrev[i].x, posPrev[i].y);
+      const [x2, y2] = toS(pos[i].x, pos[i].y);
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     }
   }
 
-  // 画当前 tick 的实体位置
-  const curPositions = [];
-  collectPositions(data.ticks[currentTick].state_after, curPositions);
-  const colors = ['#00d2ff', '#ff6b6b', '#6bff6b', '#ffff6b', '#ff6bff'];
-  curPositions.forEach((p, i) => {
-    const [sx, sy] = toScreen(p.x, p.y);
-    ctx.fillStyle = colors[i % colors.length];
+  // 当前实体
+  const curPos = []; collectPositions(data.ticks[currentTick].state_after, curPos);
+  curPos.forEach((p, i) => {
+    const [sx, sy] = toS(p.x, p.y);
+    const color = colors[i % colors.length];
+    // 外圈光晕
+    ctx.fillStyle = color + '33';
+    ctx.beginPath(); ctx.arc(sx, sy, 14, 0, Math.PI * 2); ctx.fill();
+    // 实体圆点
+    ctx.fillStyle = color;
     ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill();
-    if (p.label) {
-      ctx.fillStyle = '#fff';
-      ctx.font = '11px monospace';
-      ctx.fillText(p.label, sx + 10, sy + 4);
-    }
+    // 边框
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.stroke();
+    // 标签
+    const label = p.label || `#${i}`;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(label, sx + 12, sy - 8);
+    // 坐标
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '10px monospace';
+    ctx.fillText(`(${p.x.toFixed(1)}, ${p.y.toFixed(1)})`, sx + 12, sy + 4);
   });
 }
 
-function collectPositions(obj, result, label = '') {
-  if (obj === null || typeof obj !== 'object') return;
+function collectPositions(obj, result, label) {
+  if (!obj || typeof obj !== 'object') return;
   if ('x' in obj && 'y' in obj && typeof obj.x === 'number') {
     result.push({x: obj.x, y: obj.y, label: label || obj.name || obj.id || ''});
     return;
   }
   for (const [k, v] of Object.entries(obj)) {
-    if (Array.isArray(v)) {
-      v.forEach((item, i) => collectPositions(item, result, `${k}[${i}]`));
-    } else if (typeof v === 'object' && v !== null) {
-      collectPositions(v, result, k);
-    }
+    if (Array.isArray(v)) v.forEach((item, i) => collectPositions(item, result, item?.name || item?.id || `${k}[${i}]`));
+    else if (typeof v === 'object' && v !== null) collectPositions(v, result, v?.name || v?.id || k);
   }
 }
 
 // ========== 数值图表 ==========
 function renderChart() {
-  if (numericFields.length === 0 || data.ticks.length === 0) return;
+  if (!numericPaths.length || !data.ticks.length) return;
   const ctx = chartCanvas.getContext('2d');
   const rect = chartCanvas.parentElement.getBoundingClientRect();
-  chartCanvas.width = rect.width - 24;
-  chartCanvas.height = rect.height - 40;
-  ctx.fillStyle = '#1a1a2e';
+  chartCanvas.width = rect.width;
+  chartCanvas.height = rect.height - 30;
+  ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, chartCanvas.width, chartCanvas.height);
 
-  // 取前 6 个数值字段
-  const fields = numericFields.slice(0, 6);
-  const colors = ['#00d2ff', '#ff6b6b', '#6bff6b', '#ffff6b', '#ff6bff', '#ffaa6b'];
-  const padding = {top: 10, right: 10, bottom: 20, left: 50};
-  const w = chartCanvas.width - padding.left - padding.right;
-  const h = chartCanvas.height - padding.top - padding.bottom;
+  const colors = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#06b6d4','#f97316'];
+  const pad = {top: 15, right: 100, bottom: 25, left: 55};
+  const w = chartCanvas.width - pad.left - pad.right;
+  const h = chartCanvas.height - pad.top - pad.bottom;
 
-  // 收集数据
-  let allValues = [];
-  const series = fields.map((field, fi) => {
-    const values = data.ticks.map(t => getNestedValue(t.state_after, field));
-    allValues.push(...values.filter(v => v !== null));
+  let allVals = [];
+  const series = numericPaths.map((field, fi) => {
+    const values = data.ticks.map(t => getVal(t.state_after, field));
+    allVals.push(...values.filter(v => v !== null));
     return {field, values, color: colors[fi % colors.length]};
   });
 
-  if (allValues.length === 0) return;
-  const minV = Math.min(...allValues);
-  const maxV = Math.max(...allValues);
+  if (!allVals.length) return;
+  const minV = Math.min(...allVals);
+  const maxV = Math.max(...allVals);
   const rangeV = maxV - minV || 1;
 
-  // 画每条线
+  // Y 轴
+  ctx.fillStyle = '#4b5563';
+  ctx.font = '10px monospace';
+  for (let i = 0; i <= 4; i++) {
+    const v = minV + (rangeV * i / 4);
+    const y = pad.top + h - (i / 4) * h;
+    ctx.fillText(v.toFixed(1), 2, y + 3);
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + w, y); ctx.stroke();
+  }
+
+  // 曲线
   for (const s of series) {
     ctx.strokeStyle = s.color;
     ctx.lineWidth = 1.5;
@@ -321,29 +419,34 @@ function renderChart() {
     let started = false;
     for (let i = 0; i < s.values.length; i++) {
       if (s.values[i] === null) continue;
-      const x = padding.left + (i / Math.max(1, data.total_ticks - 1)) * w;
-      const y = padding.top + h - ((s.values[i] - minV) / rangeV) * h;
-      if (!started) { ctx.moveTo(x, y); started = true; } else { ctx.lineTo(x, y); }
+      const x = pad.left + (i / Math.max(1, data.total_ticks - 1)) * w;
+      const y = pad.top + h - ((s.values[i] - minV) / rangeV) * h;
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
     }
     ctx.stroke();
-    // 标签
-    const lastVal = s.values[s.values.length - 1];
-    if (lastVal !== null) {
-      ctx.fillStyle = s.color;
-      ctx.font = '11px monospace';
-      const shortName = s.field.split('.').pop();
-      ctx.fillText(shortName, padding.left + w + 2, padding.top + h - ((lastVal - minV) / rangeV) * h + 4);
-    }
+
+    // 图例
+    const idx = series.indexOf(s);
+    const ly = pad.top + 14 * idx + 8;
+    ctx.fillStyle = s.color;
+    ctx.fillRect(pad.left + w + 8, ly - 4, 10, 10);
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = '10px monospace';
+    ctx.fillText(s.field.split('.').pop(), pad.left + w + 22, ly + 5);
   }
 
-  // 当前 tick 标记线
+  // 当前 tick 指示线
   if (data.total_ticks > 1) {
-    const cx = padding.left + (currentTick / (data.total_ticks - 1)) * w;
-    ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+    const cx = pad.left + (currentTick / (data.total_ticks - 1)) * w;
+    ctx.strokeStyle = '#ffffff55';
     ctx.lineWidth = 1;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath(); ctx.moveTo(cx, padding.top); ctx.lineTo(cx, padding.top + h); ctx.stroke();
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(cx, pad.top); ctx.lineTo(cx, pad.top + h); ctx.stroke();
     ctx.setLineDash([]);
+    // tick 标记
+    ctx.fillStyle = '#60a5fa';
+    ctx.font = 'bold 10px monospace';
+    ctx.fillText(`t=${currentTick}`, cx + 3, pad.top + h + 14);
   }
 }
 
@@ -358,42 +461,50 @@ function goToTick(t) {
   renderChart();
 }
 
-document.getElementById('btn-prev').onclick = () => goToTick(currentTick - 1);
-document.getElementById('btn-next').onclick = () => goToTick(currentTick + 1);
-document.getElementById('btn-play').onclick = function() {
+$('btn-start').onclick = () => goToTick(0);
+$('btn-end').onclick = () => goToTick(data.total_ticks - 1);
+$('btn-prev').onclick = () => goToTick(currentTick - 1);
+$('btn-next').onclick = () => goToTick(currentTick + 1);
+$('btn-play').onclick = function() {
   playing = !playing;
-  this.textContent = playing ? '⏸ 暂停' : '▶ 播放';
+  this.textContent = playing ? '⏸' : '▶';
+  this.classList.toggle('active', playing);
   if (playing) {
-    const speed = parseInt(document.getElementById('speed').value);
+    const spd = parseInt($('speed').value);
     playTimer = setInterval(() => {
       if (currentTick >= data.total_ticks - 1) { this.click(); return; }
       goToTick(currentTick + 1);
-    }, speed);
-  } else {
-    clearInterval(playTimer);
-  }
+    }, spd);
+  } else clearInterval(playTimer);
+};
+$('speed').onchange = function() {
+  if (playing) { $('btn-play').click(); $('btn-play').click(); } // 重启计时器
 };
 timeline.oninput = () => goToTick(parseInt(timeline.value));
 
-// ========== 工具函数 ==========
+// 键盘快捷键
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') goToTick(currentTick - 1);
+  else if (e.key === 'ArrowRight') goToTick(currentTick + 1);
+  else if (e.key === ' ') { e.preventDefault(); $('btn-play').click(); }
+  else if (e.key === 'Home') goToTick(0);
+  else if (e.key === 'End') goToTick(data.total_ticks - 1);
+});
+
 function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function diffObj(before, after, prefix = '') {
   const diffs = [];
-  if (before === null || typeof before !== 'object') return diffs;
-  for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
+  if (!before || typeof before !== 'object') return diffs;
+  for (const k of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) {
     const p = prefix ? prefix + '.' + k : k;
-    const b = before[k], a = after[k];
+    const b = before?.[k], a = after?.[k];
     if (JSON.stringify(b) === JSON.stringify(a)) continue;
-    if (typeof b === 'object' && typeof a === 'object' && b !== null && a !== null && !Array.isArray(b)) {
-      diffs.push(...diffObj(b, a, p));
-    } else {
-      diffs.push(`${p}: ${JSON.stringify(b)} → ${JSON.stringify(a)}`);
-    }
+    if (typeof b === 'object' && typeof a === 'object' && b && a && !Array.isArray(b)) diffs.push(...diffObj(b, a, p));
+    else diffs.push(`${p}: ${JSON.stringify(b)} → ${JSON.stringify(a)}`);
   }
   return diffs;
 }
 
-// ========== 启动 ==========
 analyzeData();
 goToTick(0);
 window.addEventListener('resize', () => { renderSpatial(); renderChart(); });
