@@ -50,8 +50,21 @@ body { font-family: 'Consolas', 'Monaco', monospace; background: #111827; color:
 /* 空间画布 */
 #canvas-section { flex: 1; position: relative; border-bottom: 2px solid #374151; }
 #canvas-section .panel-header { position: absolute; top: 0; left: 0; right: 0; padding: 6px 12px; background: rgba(31,41,55,0.85); z-index: 1; font-size: 13px; color: #9ca3af; font-weight: bold; }
-#spatial-canvas { width: 100%; height: 100%; background: #0f172a; }
+#spatial-canvas { width: 100%; height: 100%; background: #0f172a; cursor: crosshair; }
 #no-spatial { display: flex; align-items: center; justify-content: center; height: 100%; color: #4b5563; font-size: 14px; background: #0f172a; }
+#entity-legend {
+  position: absolute; bottom: 8px; left: 8px; right: 8px;
+  display: flex; flex-wrap: wrap; gap: 6px; z-index: 2;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 4px; padding: 2px 8px;
+  background: #1f293799; border-radius: 4px; font-size: 11px; cursor: pointer;
+  border: 1px solid transparent; transition: all 0.15s;
+}
+.legend-item:hover { background: #1f2937; }
+.legend-item.active { border-color: #fff; background: #1f2937; }
+.legend-item.dimmed { opacity: 0.3; }
+.legend-shape { width: 12px; height: 12px; display: inline-block; }
 
 /* 数值图表 */
 #chart-section { height: 200px; border-bottom: 2px solid #374151; position: relative; }
@@ -109,9 +122,10 @@ body { font-family: 'Consolas', 'Monaco', monospace; background: #111827; color:
 
   <div id="viz-panel">
     <div id="canvas-section">
-      <div class="panel-header">空间视图</div>
+      <div class="panel-header">空间视图 <span id="canvas-hint" style="font-weight:normal;font-size:11px;color:#4b5563">（点击实体高亮，再次点击取消）</span></div>
       <canvas id="spatial-canvas"></canvas>
       <div id="no-spatial">未检测到空间数据（Position 字段）</div>
+      <div id="entity-legend"></div>
     </div>
     <div id="chart-section">
       <div class="panel-header">数值趋势</div>
@@ -280,12 +294,61 @@ function getChangeClass(prevV, newV) {
 }
 
 // ========== 空间渲染 ==========
+const ENTITY_COLORS = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#06b6d4','#f97316'];
+const ENTITY_SHAPES = ['circle','square','diamond','triangle','pentagon','hexagon','star','cross'];
+let selectedEntity = -1;
+let entityRegistry = [];
+
+function buildEntityRegistry() {
+  if (!data.ticks.length) return;
+  const first = []; collectPositions(data.ticks[0].state_after, first);
+  entityRegistry = first.map((p, i) => ({
+    id: i, label: p.label || `#${i}`,
+    color: ENTITY_COLORS[i % ENTITY_COLORS.length],
+    shape: ENTITY_SHAPES[i % ENTITY_SHAPES.length],
+  }));
+  renderLegend();
+}
+
+function renderLegend() {
+  const legend = document.getElementById('entity-legend');
+  legend.innerHTML = entityRegistry.map((e, i) => {
+    const ac = selectedEntity === i ? ' active' : '';
+    const dm = selectedEntity >= 0 && selectedEntity !== i ? ' dimmed' : '';
+    return `<div class="legend-item${ac}${dm}" onclick="toggleEntity(${i})"><canvas class="legend-shape" width="12" height="12" data-shape="${e.shape}" data-color="${e.color}"></canvas><span>${escHtml(e.label)}</span></div>`;
+  }).join('');
+  legend.querySelectorAll('.legend-shape').forEach(c => {
+    drawShape(c.getContext('2d'), 6, 6, 5, c.dataset.shape, c.dataset.color);
+  });
+}
+
+function toggleEntity(idx) {
+  selectedEntity = selectedEntity === idx ? -1 : idx;
+  renderLegend(); renderSpatial();
+}
+
+function drawShape(ctx, cx, cy, r, shape, color, stroke) {
+  ctx.fillStyle = color; ctx.beginPath();
+  switch (shape) {
+    case 'circle': ctx.arc(cx, cy, r, 0, Math.PI*2); break;
+    case 'square': ctx.rect(cx-r, cy-r, r*2, r*2); break;
+    case 'diamond': ctx.moveTo(cx,cy-r); ctx.lineTo(cx+r,cy); ctx.lineTo(cx,cy+r); ctx.lineTo(cx-r,cy); ctx.closePath(); break;
+    case 'triangle': ctx.moveTo(cx,cy-r); ctx.lineTo(cx+r,cy+r*0.7); ctx.lineTo(cx-r,cy+r*0.7); ctx.closePath(); break;
+    case 'pentagon': for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5;ctx[i?'lineTo':'moveTo'](cx+r*Math.cos(a),cy+r*Math.sin(a));}ctx.closePath();break;
+    case 'hexagon': for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx[i?'lineTo':'moveTo'](cx+r*Math.cos(a),cy+r*Math.sin(a));}ctx.closePath();break;
+    case 'star': for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5;const sr=i%2?r*0.4:r;ctx[i?'lineTo':'moveTo'](cx+sr*Math.cos(a),cy+sr*Math.sin(a));}ctx.closePath();break;
+    case 'cross': const w=r*0.35;ctx.moveTo(cx-w,cy-r);ctx.lineTo(cx+w,cy-r);ctx.lineTo(cx+w,cy-w);ctx.lineTo(cx+r,cy-w);ctx.lineTo(cx+r,cy+w);ctx.lineTo(cx+w,cy+w);ctx.lineTo(cx+w,cy+r);ctx.lineTo(cx-w,cy+r);ctx.lineTo(cx-w,cy+w);ctx.lineTo(cx-r,cy+w);ctx.lineTo(cx-r,cy-w);ctx.lineTo(cx-w,cy-w);ctx.closePath();break;
+  }
+  ctx.fill();
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 2; ctx.stroke(); }
+}
+
 function renderSpatial() {
   if (!hasSpatial || !data.ticks.length) return;
   const ctx = spatialCanvas.getContext('2d');
   const rect = spatialCanvas.parentElement.getBoundingClientRect();
   spatialCanvas.width = rect.width;
-  spatialCanvas.height = rect.height - 30;
+  spatialCanvas.height = rect.height - 60;
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, spatialCanvas.width, spatialCanvas.height);
 
@@ -293,72 +356,79 @@ function renderSpatial() {
   for (const tick of data.ticks) collectPositions(tick.state_after, allPos);
   if (!allPos.length) return;
 
-  const pad = 40;
-  const minX = Math.min(...allPos.map(p => p.x)) - 5;
-  const maxX = Math.max(...allPos.map(p => p.x)) + 5;
-  const minY = Math.min(...allPos.map(p => p.y)) - 5;
-  const maxY = Math.max(...allPos.map(p => p.y)) + 5;
-  const w = spatialCanvas.width - pad * 2;
-  const h = spatialCanvas.height - pad * 2;
-  const scale = Math.min(w / (maxX - minX || 1), h / (maxY - minY || 1));
-  const ox = pad + (w - (maxX - minX) * scale) / 2;
-  const oy = pad + (h - (maxY - minY) * scale) / 2;
-  const toS = (x, y) => [ox + (x - minX) * scale, oy + (y - minY) * scale];
+  const pad = 50;
+  const minX = Math.min(...allPos.map(p=>p.x))-5, maxX = Math.max(...allPos.map(p=>p.x))+5;
+  const minY = Math.min(...allPos.map(p=>p.y))-5, maxY = Math.max(...allPos.map(p=>p.y))+5;
+  const w = spatialCanvas.width-pad*2, h = spatialCanvas.height-pad*2;
+  const scale = Math.min(w/(maxX-minX||1), h/(maxY-minY||1));
+  const ox = pad+(w-(maxX-minX)*scale)/2, oy = pad+(h-(maxY-minY)*scale)/2;
+  const toS = (x,y) => [ox+(x-minX)*scale, oy+(y-minY)*scale];
 
-  // 网格
-  ctx.strokeStyle = '#1e293b';
-  ctx.lineWidth = 0.5;
-  for (let gx = Math.floor(minX); gx <= Math.ceil(maxX); gx += Math.ceil((maxX - minX) / 10) || 1) {
-    const [sx] = toS(gx, 0);
-    ctx.beginPath(); ctx.moveTo(sx, pad); ctx.lineTo(sx, spatialCanvas.height - pad); ctx.stroke();
-  }
-  for (let gy = Math.floor(minY); gy <= Math.ceil(maxY); gy += Math.ceil((maxY - minY) / 10) || 1) {
-    const [, sy] = toS(0, gy);
-    ctx.beginPath(); ctx.moveTo(pad, sy); ctx.lineTo(spatialCanvas.width - pad, sy); ctx.stroke();
-  }
-
-  const colors = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#06b6d4','#f97316'];
+  // 网格+坐标标注
+  ctx.strokeStyle='#1e293b'; ctx.lineWidth=0.5; ctx.fillStyle='#374151'; ctx.font='9px monospace';
+  const gsX=Math.ceil((maxX-minX)/10)||1;
+  for(let gx=Math.floor(minX/gsX)*gsX;gx<=maxX;gx+=gsX){const[sx]=toS(gx,0);ctx.beginPath();ctx.moveTo(sx,pad);ctx.lineTo(sx,spatialCanvas.height-pad);ctx.stroke();ctx.fillText(gx.toFixed(0),sx-8,spatialCanvas.height-pad+12);}
+  const gsY=Math.ceil((maxY-minY)/10)||1;
+  for(let gy=Math.floor(minY/gsY)*gsY;gy<=maxY;gy+=gsY){const[,sy]=toS(0,gy);ctx.beginPath();ctx.moveTo(pad,sy);ctx.lineTo(spatialCanvas.width-pad,sy);ctx.stroke();ctx.fillText(gy.toFixed(0),4,sy+3);}
 
   // 轨迹线
-  for (let t = 0; t <= currentTick; t++) {
-    const pos = []; collectPositions(data.ticks[t].state_after, pos);
-    const posPrev = []; collectPositions(data.ticks[t].state_before, posPrev);
-    const alpha = 0.1 + 0.3 * (t / Math.max(1, currentTick));
-    for (let i = 0; i < Math.min(pos.length, posPrev.length); i++) {
-      ctx.strokeStyle = colors[i % colors.length] + Math.round(alpha * 255).toString(16).padStart(2, '0');
-      ctx.lineWidth = 1.5;
-      const [x1, y1] = toS(posPrev[i].x, posPrev[i].y);
-      const [x2, y2] = toS(pos[i].x, pos[i].y);
-      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  for(let t=0;t<=currentTick;t++){
+    const pos=[];collectPositions(data.ticks[t].state_after,pos);
+    const pp=[];collectPositions(data.ticks[t].state_before,pp);
+    const alpha=0.08+0.4*(t/Math.max(1,currentTick));
+    for(let i=0;i<Math.min(pos.length,pp.length);i++){
+      if(selectedEntity>=0&&i!==selectedEntity)continue;
+      const e=entityRegistry[i]||{color:ENTITY_COLORS[i%ENTITY_COLORS.length]};
+      ctx.strokeStyle=e.color+Math.round(alpha*255).toString(16).padStart(2,'0');
+      ctx.lineWidth=selectedEntity===i?2.5:1.5;
+      const[x1,y1]=toS(pp[i].x,pp[i].y),[x2,y2]=toS(pos[i].x,pos[i].y);
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
     }
   }
 
-  // 当前实体
-  const curPos = []; collectPositions(data.ticks[currentTick].state_after, curPos);
-  curPos.forEach((p, i) => {
-    const [sx, sy] = toS(p.x, p.y);
-    const color = colors[i % colors.length];
-    // 外圈光晕
-    ctx.fillStyle = color + '33';
-    ctx.beginPath(); ctx.arc(sx, sy, 14, 0, Math.PI * 2); ctx.fill();
-    // 实体圆点
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.fill();
-    // 边框
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(sx, sy, 6, 0, Math.PI * 2); ctx.stroke();
-    // 标签
-    const label = p.label || `#${i}`;
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px monospace';
-    ctx.fillText(label, sx + 12, sy - 8);
-    // 坐标
-    ctx.fillStyle = '#6b7280';
-    ctx.font = '10px monospace';
-    ctx.fillText(`(${p.x.toFixed(1)}, ${p.y.toFixed(1)})`, sx + 12, sy + 4);
+  // 实体标记
+  const curPos=[];collectPositions(data.ticks[currentTick].state_after,curPos);
+  curPos.forEach((p,i)=>{
+    const[sx,sy]=toS(p.x,p.y);
+    const e=entityRegistry[i]||{color:ENTITY_COLORS[i%ENTITY_COLORS.length],shape:'circle'};
+    const isDimmed=selectedEntity>=0&&selectedEntity!==i;
+    const isSel=selectedEntity===i;
+    const sz=isSel?10:7;
+
+    if(isDimmed){ctx.globalAlpha=0.15;drawShape(ctx,sx,sy,sz,e.shape,e.color);ctx.globalAlpha=1;return;}
+
+    if(isSel){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy,sz+6,0,Math.PI*2);ctx.stroke();}
+    ctx.fillStyle=e.color+'22';ctx.beginPath();ctx.arc(sx,sy,sz+4,0,Math.PI*2);ctx.fill();
+    drawShape(ctx,sx,sy,sz,e.shape,e.color,'#fff');
+    // 编号
+    ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
+    ctx.fillText(i,sx,sy+3);ctx.textAlign='left';
+    // 坐标（选中或少量实体时显示）
+    if(isSel||curPos.length<=3){ctx.fillStyle='#9ca3af';ctx.font='10px monospace';ctx.fillText(`(${p.x.toFixed(1)}, ${p.y.toFixed(1)})`,sx+sz+6,sy+4);}
   });
 }
+
+spatialCanvas.addEventListener('click', e=>{
+  if(!data.ticks.length)return;
+  const rect=spatialCanvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const curPos=[];collectPositions(data.ticks[currentTick].state_after,curPos);
+  const allPos=[];for(const tick of data.ticks)collectPositions(tick.state_after,allPos);
+  if(!allPos.length)return;
+  const pad=50;
+  const minX=Math.min(...allPos.map(p=>p.x))-5,maxX=Math.max(...allPos.map(p=>p.x))+5;
+  const minY=Math.min(...allPos.map(p=>p.y))-5,maxY=Math.max(...allPos.map(p=>p.y))+5;
+  const w=spatialCanvas.width-pad*2,h=spatialCanvas.height-pad*2;
+  const scale=Math.min(w/(maxX-minX||1),h/(maxY-minY||1));
+  const ox=pad+(w-(maxX-minX)*scale)/2,oy=pad+(h-(maxY-minY)*scale)/2;
+  let closest=-1,minDist=20;
+  curPos.forEach((p,i)=>{
+    const sx=ox+(p.x-minX)*scale,sy=oy+(p.y-minY)*scale;
+    const dist=Math.sqrt((mx-sx)**2+(my-sy)**2);
+    if(dist<minDist){minDist=dist;closest=i;}
+  });
+  toggleEntity(closest>=0?closest:-1);
+});
 
 function collectPositions(obj, result, label) {
   if (!obj || typeof obj !== 'object') return;
@@ -506,6 +576,7 @@ function diffObj(before, after, prefix = '') {
 }
 
 analyzeData();
+if (hasSpatial) buildEntityRegistry();
 goToTick(0);
 window.addEventListener('resize', () => { renderSpatial(); renderChart(); });
 </script>
