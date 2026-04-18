@@ -99,16 +99,16 @@ body { font-family: 'Consolas', 'Monaco', monospace; background: #111827; color:
   <button id="btn-next" title="下一 tick">▶</button>
   <button id="btn-end" title="跳到末尾">⏭</button>
   <input type="range" id="timeline" min="0" value="0">
-  <span id="tick-display">tick 0 / 0</span>
+  <span id="tick-display">帧 0 / 0</span>
   <div id="speed-group">
     <label>速度:</label>
     <select id="speed">
-      <option value="500">2 tps</option>
-      <option value="200">5 tps</option>
-      <option value="100">10 tps</option>
-      <option value="33" selected>30 tps</option>
-      <option value="16">60 tps</option>
-      <option value="8">120 tps</option>
+      <option value="500">2 帧/秒</option>
+      <option value="200">5 帧/秒</option>
+      <option value="100">10 帧/秒</option>
+      <option value="33" selected>30 帧/秒</option>
+      <option value="16">60 帧/秒</option>
+      <option value="8">120 帧/秒</option>
       <option value="1">最大</option>
     </select>
   </div>
@@ -124,7 +124,7 @@ body { font-family: 'Consolas', 'Monaco', monospace; background: #111827; color:
     <div id="canvas-section">
       <div class="panel-header">空间视图 <span id="canvas-hint" style="font-weight:normal;font-size:11px;color:#4b5563">（点击实体高亮，再次点击取消）</span></div>
       <canvas id="spatial-canvas"></canvas>
-      <div id="no-spatial">未检测到空间数据（Position 字段）</div>
+      <div id="no-spatial">未检测到空间数据（position/center 字段）</div>
       <div id="entity-legend"></div>
     </div>
     <div id="chart-section">
@@ -167,7 +167,7 @@ const noSpatial = $('no-spatial');
 timeline.max = Math.max(0, data.total_ticks - 1);
 
 // 状态栏
-$('status-total').textContent = `总 ticks: ${data.total_ticks}`;
+$('status-total').textContent = `总帧数: ${data.total_ticks}`;
 const vCount = (data.invariant_violations || []).length;
 $('status-violations').textContent = `不变量违反: ${vCount}`;
 $('status-result').textContent = data.passed ? '✓ 通过' : '✗ 未通过';
@@ -226,7 +226,7 @@ function renderEventLog() {
     const cls = isActive ? ' active' : '';
     const summary = (tick.events || []).length ? tick.events[0].substring(0, 30) : '';
     html += `<div class="tick-group">`;
-    html += `<div class="tick-header${cls}" onclick="goToTick(${tick.tick})"><span class="tick-num">tick ${tick.tick}</span><span class="tick-summary">${escHtml(summary)}</span></div>`;
+    html += `<div class="tick-header${cls}" onclick="goToTick(${tick.tick})"><span class="tick-num">帧 ${tick.tick}</span><span class="tick-summary">${escHtml(summary)}</span></div>`;
     if (isActive) {
       for (const ev of tick.events || []) html += `<div class="tick-event">${escHtml(ev)}</div>`;
       for (const d of diffObj(tick.state_before, tick.state_after).slice(0, 15)) {
@@ -246,7 +246,7 @@ function renderState() {
   if (!data.ticks.length) { stateContent.innerHTML = '无数据'; return; }
   const tick = data.ticks[currentTick];
   if (!tick) return;
-  $('state-tick-label').textContent = `(tick ${currentTick})`;
+  $('state-tick-label').textContent = `(帧 ${currentTick})`;
   const state = tick.state_after;
   const prev = tick.state_before;
   stateContent.innerHTML = buildStateHtml(state, prev);
@@ -361,60 +361,233 @@ function renderSpatial() {
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, spatialCanvas.width, spatialCanvas.height);
 
-  const allPos = [];
-  for (const tick of data.ticks) collectPositions(tick.state_after, allPos);
-  if (!allPos.length) return;
+  const state = data.ticks[currentTick].state_after;
 
-  const pad = 50;
-  const minX = Math.min(...allPos.map(p=>p.x))-5, maxX = Math.max(...allPos.map(p=>p.x))+5;
-  const minY = Math.min(...allPos.map(p=>p.y))-5, maxY = Math.max(...allPos.map(p=>p.y))+5;
+  // 收集所有空间坐标确定视口范围
+  const allCoords = [];
+  for (const tick of data.ticks) {
+    const s = tick.state_after;
+    collectAllCoords(s, allCoords);
+  }
+  if (!allCoords.length) return;
+
+  const pad = 60;
+  const minX = Math.min(...allCoords.map(c=>c.x))-5, maxX = Math.max(...allCoords.map(c=>c.x))+5;
+  const minY = Math.min(...allCoords.map(c=>c.y))-5, maxY = Math.max(...allCoords.map(c=>c.y))+5;
   const w = spatialCanvas.width-pad*2, h = spatialCanvas.height-pad*2;
   const scale = Math.min(w/(maxX-minX||1), h/(maxY-minY||1));
   const ox = pad+(w-(maxX-minX)*scale)/2, oy = pad+(h-(maxY-minY)*scale)/2;
-  const toS = (x,y) => [ox+(x-minX)*scale, oy+(y-minY)*scale];
+  // Y 轴翻转：屏幕 Y 向下，游戏 Y 向上
+  const toS = (x,y) => [ox+(x-minX)*scale, oy+(maxY-y)*scale];
 
-  // 网格+坐标标注
-  ctx.strokeStyle='#1e293b'; ctx.lineWidth=0.5; ctx.fillStyle='#374151'; ctx.font='9px monospace';
+  // --- 网格 + 坐标轴 ---
+  ctx.strokeStyle='#1e293b'; ctx.lineWidth=0.5; ctx.fillStyle='#4b5563'; ctx.font='9px monospace';
   const gsX=Math.ceil((maxX-minX)/10)||1;
-  for(let gx=Math.floor(minX/gsX)*gsX;gx<=maxX;gx+=gsX){const[sx]=toS(gx,0);ctx.beginPath();ctx.moveTo(sx,pad);ctx.lineTo(sx,spatialCanvas.height-pad);ctx.stroke();ctx.fillText(gx.toFixed(0),sx-8,spatialCanvas.height-pad+12);}
+  for(let gx=Math.floor(minX/gsX)*gsX;gx<=maxX;gx+=gsX){
+    const[sx]=toS(gx,minY);ctx.beginPath();ctx.moveTo(sx,pad);ctx.lineTo(sx,spatialCanvas.height-pad);ctx.stroke();
+    ctx.fillText(gx.toFixed(0),sx-8,spatialCanvas.height-pad+14);
+  }
   const gsY=Math.ceil((maxY-minY)/10)||1;
-  for(let gy=Math.floor(minY/gsY)*gsY;gy<=maxY;gy+=gsY){const[,sy]=toS(0,gy);ctx.beginPath();ctx.moveTo(pad,sy);ctx.lineTo(spatialCanvas.width-pad,sy);ctx.stroke();ctx.fillText(gy.toFixed(0),4,sy+3);}
+  for(let gy=Math.floor(minY/gsY)*gsY;gy<=maxY;gy+=gsY){
+    const[,sy]=toS(minX,gy);ctx.beginPath();ctx.moveTo(pad,sy);ctx.lineTo(spatialCanvas.width-pad,sy);ctx.stroke();
+    ctx.fillText(gy.toFixed(0),4,sy+3);
+  }
+  // 轴标签
+  ctx.fillStyle='#6b7280'; ctx.font='bold 11px monospace';
+  ctx.fillText('X', spatialCanvas.width-pad+5, spatialCanvas.height-pad+4);
+  ctx.fillText('Y', pad-15, pad-8);
 
-  // 轨迹线
+  // --- 第1层：区域（zones）---
+  const zones = findArray(state, 'zones') || findArray(state, 'regions') || [];
+  const zoneColors = ['#3b82f644','#ef444444','#22c55e44','#eab30844','#a855f744'];
+  zones.forEach((zone, zi) => {
+    const center = getVec(zone, 'center') || getVec(zone, 'position');
+    if (!center) return;
+    const [cx, cy] = toS(center[0], center[1]);
+    const halfExt = zone.half_extents || zone.halfExtents || zone.size;
+    const shape = zone.shape || 'box';
+    const color = zoneColors[zi % zoneColors.length];
+    const borderColor = color.slice(0,7) + 'aa';
+
+    if (halfExt) {
+      const hw = Math.abs(halfExt[0]) * scale;
+      const hh = Math.abs(halfExt[1] || halfExt[0]) * scale;
+      ctx.fillStyle = color;
+      ctx.strokeStyle = borderColor;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 3]);
+      if (shape === 'sphere' || shape === 'circle') {
+        ctx.beginPath(); ctx.arc(cx, cy, hw, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      } else {
+        ctx.fillRect(cx-hw, cy-hh, hw*2, hh*2);
+        ctx.strokeRect(cx-hw, cy-hh, hw*2, hh*2);
+      }
+      ctx.setLineDash([]);
+    }
+
+    // 区域名称
+    const label = zone.name || zone.id || `区域${zi}`;
+    ctx.fillStyle = borderColor.slice(0,7);
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, cx, cy - (halfExt ? Math.abs(halfExt[1]||halfExt[0])*scale + 8 : 12));
+
+    // 区域内重力方向箭头
+    const grav = zone.gravity_override || zone.gravity || zone.gravityOverride;
+    if (grav) {
+      drawGravityArrow(ctx, cx, cy, grav, scale * 0.3, borderColor.slice(0,7));
+    }
+    ctx.textAlign = 'left';
+  });
+
+  // --- 第2层：全局重力方向（左上角标注）---
+  const config = state.config || state.settings || {};
+  const globalGrav = config.global_gravity || config.gravity || config.globalGravity;
+  if (globalGrav) {
+    ctx.fillStyle = '#9ca3af';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText('全局重力', pad, 18);
+    drawGravityArrow(ctx, pad + 80, 14, globalGrav, 15, '#f87171');
+    const gStr = `(${globalGrav[0]}, ${globalGrav[1]}${globalGrav[2]!==undefined?', '+globalGrav[2]:''})`;
+    ctx.fillStyle = '#6b7280'; ctx.font = '10px monospace';
+    ctx.fillText(gStr, pad + 100, 18);
+  }
+
+  // --- 第3层：实体轨迹 ---
+  const bodies = findArray(state, 'bodies') || findArray(state, 'entities') || findArray(state, 'objects') || [];
+  const bodyColors = ['#3b82f6','#ef4444','#22c55e','#eab308','#a855f7','#ec4899','#06b6d4','#f97316'];
+
   for(let t=0;t<=currentTick;t++){
-    const pos=[];collectPositions(data.ticks[t].state_after,pos);
-    const pp=[];collectPositions(data.ticks[t].state_before,pp);
-    const alpha=0.08+0.4*(t/Math.max(1,currentTick));
-    for(let i=0;i<Math.min(pos.length,pp.length);i++){
+    const s = data.ticks[t].state_after;
+    const sp = data.ticks[t].state_before;
+    const bAfter = findArray(s, 'bodies') || findArray(s, 'entities') || findArray(s, 'objects') || [];
+    const bBefore = findArray(sp, 'bodies') || findArray(sp, 'entities') || findArray(sp, 'objects') || [];
+    const alpha = 0.1 + 0.5*(t/Math.max(1,currentTick));
+    for(let i=0;i<Math.min(bAfter.length,bBefore.length);i++){
       if(selectedEntity>=0&&i!==selectedEntity)continue;
-      const e=entityRegistry[i]||{color:ENTITY_COLORS[i%ENTITY_COLORS.length]};
-      ctx.strokeStyle=e.color+Math.round(alpha*255).toString(16).padStart(2,'0');
-      ctx.lineWidth=selectedEntity===i?2.5:1.5;
-      const[x1,y1]=toS(pp[i].x,pp[i].y),[x2,y2]=toS(pos[i].x,pos[i].y);
+      const posA = getVec(bAfter[i],'position') || getVec(bAfter[i],'pos');
+      const posB = getVec(bBefore[i],'position') || getVec(bBefore[i],'pos');
+      if(!posA||!posB)continue;
+      const color = bodyColors[i%bodyColors.length];
+      ctx.strokeStyle=color+Math.round(alpha*255).toString(16).padStart(2,'0');
+      ctx.lineWidth=selectedEntity===i?3:2;
+      const[x1,y1]=toS(posB[0],posB[1]),[x2,y2]=toS(posA[0],posA[1]);
       ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
     }
   }
 
-  // 实体标记
-  const curPos=[];collectPositions(data.ticks[currentTick].state_after,curPos);
-  curPos.forEach((p,i)=>{
-    const[sx,sy]=toS(p.x,p.y);
-    const e=entityRegistry[i]||{color:ENTITY_COLORS[i%ENTITY_COLORS.length],shape:'circle'};
-    const isDimmed=selectedEntity>=0&&selectedEntity!==i;
-    const isSel=selectedEntity===i;
-    const sz=isSel?10:7;
+  // --- 第4层：当前帧实体标记 ---
+  const curBodies = findArray(state, 'bodies') || findArray(state, 'entities') || findArray(state, 'objects') || [];
+  curBodies.forEach((body, i) => {
+    const pos = getVec(body, 'position') || getVec(body, 'pos');
+    if (!pos) return;
+    const [sx, sy] = toS(pos[0], pos[1]);
+    const color = bodyColors[i % bodyColors.length];
+    const isDimmed = selectedEntity >= 0 && selectedEntity !== i;
+    const isSel = selectedEntity === i;
+    const sz = isSel ? 12 : 8;
 
-    if(isDimmed){ctx.globalAlpha=0.15;drawShape(ctx,sx,sy,sz,e.shape,e.color);ctx.globalAlpha=1;return;}
+    if (isDimmed) { ctx.globalAlpha = 0.15; }
 
-    if(isSel){ctx.strokeStyle='#fff';ctx.lineWidth=2;ctx.beginPath();ctx.arc(sx,sy,sz+6,0,Math.PI*2);ctx.stroke();}
-    ctx.fillStyle=e.color+'22';ctx.beginPath();ctx.arc(sx,sy,sz+4,0,Math.PI*2);ctx.fill();
-    drawShape(ctx,sx,sy,sz,e.shape,e.color,'#fff');
-    // 编号
-    ctx.fillStyle='#fff';ctx.font='bold 9px monospace';ctx.textAlign='center';
-    ctx.fillText(i,sx,sy+3);ctx.textAlign='left';
-    // 坐标（选中或少量实体时显示）
-    if(isSel||curPos.length<=3){ctx.fillStyle='#9ca3af';ctx.font='10px monospace';ctx.fillText(`(${p.x.toFixed(1)}, ${p.y.toFixed(1)})`,sx+sz+6,sy+4);}
+    // 实体圆点（实心，区别于区域的虚线框）
+    ctx.fillStyle = color + '33';
+    ctx.beginPath(); ctx.arc(sx, sy, sz + 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(sx, sy, sz, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx, sy, sz, 0, Math.PI*2); ctx.stroke();
+
+    if (isSel) {
+      ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(sx, sy, sz + 10, 0, Math.PI*2); ctx.stroke();
+    }
+
+    // 实体名称（中文优先，fallback 到 id）
+    const label = body.name || body.id || `实体${i}`;
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(label, sx, sy - sz - 6);
+
+    // 速度方向箭头
+    const vel = getVec(body, 'velocity') || getVec(body, 'vel');
+    if (vel && (Math.abs(vel[0]) > 0.01 || Math.abs(vel[1]) > 0.01)) {
+      const vLen = Math.sqrt(vel[0]*vel[0] + vel[1]*vel[1]);
+      const arrowLen = Math.min(30, vLen * scale * 0.15);
+      const nx = vel[0]/vLen, ny = vel[1]/vLen;
+      const ex = sx + nx * arrowLen, ey = sy - ny * arrowLen; // Y 翻转
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+      // 箭头头部
+      const headLen = 6, angle = Math.atan2(-(ny), nx);
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - headLen*Math.cos(angle-0.4), ey + headLen*Math.sin(angle-0.4));
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - headLen*Math.cos(angle+0.4), ey + headLen*Math.sin(angle+0.4));
+      ctx.stroke();
+    }
+
+    // 坐标
+    if (isSel || curBodies.length <= 3) {
+      ctx.fillStyle = '#9ca3af'; ctx.font = '10px monospace';
+      ctx.fillText(`(${pos[0].toFixed(1)}, ${pos[1].toFixed(1)})`, sx, sy + sz + 14);
+    }
+    ctx.textAlign = 'left';
+    ctx.globalAlpha = 1;
   });
+}
+
+// --- 辅助函数 ---
+function drawGravityArrow(ctx, cx, cy, grav, arrowScale, color) {
+  const gx = grav[0], gy = grav[1];
+  if (Math.abs(gx) < 0.001 && Math.abs(gy) < 0.001) return;
+  const len = Math.sqrt(gx*gx + gy*gy);
+  const nx = gx/len, ny = gy/len;
+  const aLen = Math.min(25, len * arrowScale);
+  const ex = cx + nx * aLen, ey = cy - ny * aLen; // Y 翻转
+  ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(ex, ey); ctx.stroke();
+  const headLen = 7, angle = Math.atan2(-ny, nx);
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen*Math.cos(angle-0.5), ey + headLen*Math.sin(angle-0.5));
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen*Math.cos(angle+0.5), ey + headLen*Math.sin(angle+0.5));
+  ctx.stroke();
+}
+
+function findArray(obj, key) {
+  if (!obj || typeof obj !== 'object') return null;
+  if (Array.isArray(obj[key])) return obj[key];
+  for (const v of Object.values(obj)) {
+    if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+      const found = findArray(v, key);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function getVec(obj, key) {
+  if (!obj) return null;
+  const v = obj[key];
+  if (Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number') return v;
+  if (v && typeof v === 'object' && 'x' in v) return [v.x, v.y, v.z || 0];
+  return null;
+}
+
+function collectAllCoords(obj, result) {
+  if (!obj || typeof obj !== 'object') return;
+  for (const [k, v] of Object.entries(obj)) {
+    if (Array.isArray(v) && v.length >= 2 && v.length <= 4 && typeof v[0] === 'number' && SPATIAL_KEYS.includes(k)) {
+      result.push({x: v[0], y: v[1]});
+    } else if (v && typeof v === 'object' && 'x' in v && typeof v.x === 'number') {
+      result.push({x: v.x, y: v.y});
+    } else if (Array.isArray(v)) {
+      v.forEach(item => collectAllCoords(item, result));
+    } else if (typeof v === 'object' && v !== null) {
+      collectAllCoords(v, result);
+    }
+  }
 }
 
 spatialCanvas.addEventListener('click', e=>{
@@ -536,7 +709,7 @@ function renderChart() {
     // tick 标记
     ctx.fillStyle = '#60a5fa';
     ctx.font = 'bold 10px monospace';
-    ctx.fillText(`t=${currentTick}`, cx + 3, pad.top + h + 14);
+    ctx.fillText(`帧=${currentTick}`, cx + 3, pad.top + h + 14);
   }
 }
 
@@ -544,7 +717,7 @@ function renderChart() {
 function goToTick(t) {
   currentTick = Math.max(0, Math.min(t, data.total_ticks - 1));
   timeline.value = currentTick;
-  tickDisplay.textContent = `tick ${currentTick} / ${data.total_ticks - 1}`;
+  tickDisplay.textContent = `帧 ${currentTick} / ${data.total_ticks - 1}`;
   renderEventLog();
   renderState();
   renderSpatial();

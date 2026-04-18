@@ -45,7 +45,7 @@ tests/modules/{module_name}/
 
 - 引擎类必须继承 `src/common/interfaces.py` 中的 `GameEngine` 基类
 - 数据模型必须使用 Pydantic BaseModel，字段有类型约束
-- Action 和 State 模型建议实现 `__str__`，提供人类可读的事件/状态描述（用于回放可视化）
+- Action 和 State 模型建议实现 `__str__`，提供人类可读的中文事件/状态描述（用于回放可视化）。实体 ID 可用英文（代码标识符），但 `__str__` 输出必须使用中文
 - 状态变更采用不可变风格（返回新对象，不修改原对象）
 - 无跨模块 import，只通过 `common/` 通信
 - 函数不超过 50 行
