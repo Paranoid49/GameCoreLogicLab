@@ -183,13 +183,22 @@ function analyzeData() {
   numericPaths = detectNumericPaths(sample).slice(0, 8);
 }
 
-function detectSpatial(obj) {
+const SPATIAL_KEYS = ['position','pos','location','loc','center','origin','point'];
+
+function detectSpatial(obj, key) {
   if (!obj || typeof obj !== 'object') return false;
+  // 对象格式 {x, y}
   if ('x' in obj && 'y' in obj && typeof obj.x === 'number') return true;
-  for (const v of Object.values(obj)) {
+  // 数组格式 [x, y] 或 [x, y, z]，字段名匹配空间关键词
+  if (Array.isArray(obj) && obj.length >= 2 && typeof obj[0] === 'number' && SPATIAL_KEYS.includes(key)) return true;
+  for (const [k, v] of Object.entries(obj)) {
     if (typeof v === 'object' && v !== null) {
-      if (Array.isArray(v)) { for (const item of v) if (detectSpatial(item)) return true; }
-      else if (detectSpatial(v)) return true;
+      if (Array.isArray(v)) {
+        // 数组值：检查是否是坐标数组，或递归检查数组元素
+        if (v.length >= 2 && v.length <= 4 && typeof v[0] === 'number' && SPATIAL_KEYS.includes(k)) return true;
+        for (const item of v) if (detectSpatial(item, k)) return true;
+      }
+      else if (detectSpatial(v, k)) return true;
     }
   }
   return false;
@@ -432,13 +441,24 @@ spatialCanvas.addEventListener('click', e=>{
 
 function collectPositions(obj, result, label) {
   if (!obj || typeof obj !== 'object') return;
+  // 对象格式 {x, y}
   if ('x' in obj && 'y' in obj && typeof obj.x === 'number') {
     result.push({x: obj.x, y: obj.y, label: label || obj.name || obj.id || ''});
     return;
   }
   for (const [k, v] of Object.entries(obj)) {
-    if (Array.isArray(v)) v.forEach((item, i) => collectPositions(item, result, item?.name || item?.id || `${k}[${i}]`));
-    else if (typeof v === 'object' && v !== null) collectPositions(v, result, v?.name || v?.id || k);
+    // 数组格式 [x, y] 或 [x, y, z]，字段名匹配空间关键词
+    if (Array.isArray(v) && v.length >= 2 && v.length <= 4 && typeof v[0] === 'number' && SPATIAL_KEYS.includes(k)) {
+      result.push({x: v[0], y: v[1], label: label || obj.name || obj.id || ''});
+    }
+    // 对象数组（如 bodies 列表）
+    else if (Array.isArray(v)) {
+      v.forEach((item, i) => collectPositions(item, result, item?.name || item?.id || `${k}[${i}]`));
+    }
+    // 嵌套对象
+    else if (typeof v === 'object' && v !== null) {
+      collectPositions(v, result, v?.name || v?.id || k);
+    }
   }
 }
 
