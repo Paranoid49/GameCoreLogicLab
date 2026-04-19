@@ -163,6 +163,8 @@ const stateContent = $('state-content');
 const spatialCanvas = $('spatial-canvas');
 const chartCanvas = $('chart-canvas');
 const noSpatial = $('no-spatial');
+const fieldLabels = data.field_labels || {};
+function label(key) { return fieldLabels[key] || key; }
 
 timeline.max = Math.max(0, data.total_ticks - 1);
 
@@ -272,7 +274,7 @@ function buildStateHtml(state, prev) {
       const prevV = prev ? prev[k] : undefined;
       const changed = JSON.stringify(v) !== JSON.stringify(prevV);
       const cls = changed ? getChangeClass(prevV, v) : '';
-      html += `<div class="state-row"><span class="state-key">${k}</span><span class="state-val${cls}">${JSON.stringify(v)}</span></div>`;
+      html += `<div class="state-row"><span class="state-key">${label(k)}</span><span class="state-val${cls}">${JSON.stringify(v)}</span></div>`;
     }
   }
   return html;
@@ -289,7 +291,7 @@ function renderEntityCard(label, entity, prevEntity, colorIdx) {
     const prevV = prevEntity[k];
     const changed = JSON.stringify(v) !== JSON.stringify(prevV);
     const cls = changed ? getChangeClass(prevV, v) : '';
-    html += `<div class="state-row"><span class="state-key">${k}</span><span class="state-val${cls}">${v}</span></div>`;
+    html += `<div class="state-row"><span class="state-key">${label(k)}</span><span class="state-val${cls}">${v}</span></div>`;
   }
   html += `</div></div>`;
   return html;
@@ -695,7 +697,8 @@ function renderChart() {
     ctx.fillRect(pad.left + w + 8, ly - 4, 10, 10);
     ctx.fillStyle = '#9ca3af';
     ctx.font = '10px monospace';
-    ctx.fillText(s.field.split('.').pop(), pad.left + w + 22, ly + 5);
+    const shortName = label(s.field.split('.').pop());
+    ctx.fillText(shortName, pad.left + w + 22, ly + 5);
   }
 
   // 当前 tick 指示线
@@ -759,7 +762,8 @@ function diffObj(before, after, prefix = '') {
   const diffs = [];
   if (!before || typeof before !== 'object') return diffs;
   for (const k of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) {
-    const p = prefix ? prefix + '.' + k : k;
+    const displayK = label(k);
+    const p = prefix ? prefix + '.' + displayK : displayK;
     const b = before?.[k], a = after?.[k];
     if (JSON.stringify(b) === JSON.stringify(a)) continue;
     if (typeof b === 'object' && typeof a === 'object' && b && a && !Array.isArray(b)) diffs.push(...diffObj(b, a, p));

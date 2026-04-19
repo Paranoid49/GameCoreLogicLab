@@ -45,7 +45,7 @@ class SimulationResult:
         self.passed = False
 
     def to_replay_dict(self) -> dict[str, Any]:
-        """将结果转为可序列化的回放字典。"""
+        """将结果转为可序列化的回放字典，包含字段中文标签映射。"""
         ticks = []
         for record in self.history:
             ticks.append({
@@ -60,7 +60,41 @@ class SimulationResult:
             "ticks": ticks,
             "invariant_violations": self.invariant_violations,
             "passed": self.passed,
+            "field_labels": self._extract_field_labels(self.final_state),
         }
+
+    @staticmethod
+    def _extract_field_labels(model: BaseModel) -> dict[str, str]:
+        """从 Pydantic 模型 schema 递归提取字段的中文描述，用于回放显示。"""
+        labels: dict[str, str] = {}
+
+        def _extract(schema: dict, prefix: str = "") -> None:
+            props = schema.get("properties", {})
+            for name, prop in props.items():
+                key = f"{prefix}.{name}" if prefix else name
+                desc = prop.get("description") or prop.get("title")
+                if desc and desc != name:
+                    labels[name] = desc
+                # 递归嵌套对象
+                if "properties" in prop:
+                    _extract(prop, key)
+                # 处理 $defs 引用
+                ref = prop.get("$ref", "")
+                if ref and "$defs" in schema:
+                    ref_name = ref.split("/")[-1]
+                    ref_schema = schema.get("$defs", {}).get(ref_name, {})
+                    _extract(ref_schema, key)
+
+            # 处理顶层 $defs
+            for def_name, def_schema in schema.get("$defs", {}).items():
+                _extract(def_schema, "")
+
+        try:
+            schema = model.model_json_schema()
+            _extract(schema)
+        except Exception:
+            pass
+        return labels
 
     def export_json(self, path: str | Path) -> Path:
         """导出回放 JSON 文件。"""
