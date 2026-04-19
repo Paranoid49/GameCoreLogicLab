@@ -53,15 +53,16 @@
 ### 阶段 4：迭代（如需要）
 
 如果 Evaluator 报告 FAIL，或报告 PASS 但存在重要级 Bug：
-1. 提取 Evaluator 的 Bug 列表
+1. 提取 Evaluator 的 Bug 列表（致命 + 重要）
 2. 重新派生 generator Agent，附带 Bug 列表作为反馈（Generator 会在修复前自动创建迭代安全点）
-3. 再次派生 evaluator Agent 重新评估
-4. 最多迭代 3 轮
-5. 如果迭代中越改越烂，Generator 会自动回滚到上个安全点
+3. Generator 完成修复后，**必须重新派生 evaluator Agent 执行完整评估**。禁止用手动运行 pytest 或其他方式替代 Evaluator 重评。只有 Evaluator 的正式报告才能作为判定依据
+4. 如果 Evaluator 再次报告问题，重复步骤 1-3
+5. 最多迭代 3 轮
+6. 如果迭代中越改越烂，Generator 会自动回滚到上个安全点
 
 ### 阶段 5：归档
 
-评估通过后：
+只有 Evaluator 的最终报告为 PASS 且无重要级 Bug 时才可进入归档：
 1. 将规格文档从 `docs/plans/active/` 移动到 `docs/plans/completed/`
 2. 向用户报告最终结果：模块名、文件列表、评估总分
 
